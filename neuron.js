@@ -17,7 +17,8 @@ import os from 'node:os'
 
 export const DEFAULTS = {
   dshMemoryDir: path.join(os.homedir(), '.dsh', 'memory'),
-  qqObservations: 'C:\\dsh\\qq-agent\\QQ-Agent-京玉-1019-r2-完整包\\data\\memory\\observations.jsonl',
+  // QQ-Agent 侧的观察库；留空 = 不读 QQ 侧（真实路径放本地配置）
+  qqObservations: '',
   maxNodes: 1200,
   refPerNode: 3,      // 每个节点最多记几条「引用」边，防爆炸
   coKeyPerNode: 3,    // 每个节点最多记几条「共词」边
@@ -255,23 +256,16 @@ export function buildNeuron({ dsh, qq, cfg = {}, names = new Map() }) {
   const projectKeyOf = (m) => (m.side === 'qq' ? `room:${m.chatKey || '(全局)'}` : `proj:${projectOf(m)}`)
 
   // 房间名一律带「群 ·」「私聊 ·」前缀：房间是容器，不是人。
-  // 2026-11-05 14:5x 她看图把「浔（私聊）」当成了另一个人——人和房间得一眼分得开。
-  const ROOMS = {
-    'group:<group-a>': '群 · 深水区',
-    'group:<group-c>': '群 · 浅水区',
-    'group:<group-b>': '群 · 巅峰之战',
-    'group:<group-d>': '群 · <group-d>',
-    'group:<group-e>': '群 · <group-e>',
-    'group:<group-f>': '群 · <group-f>',
-    'group:<group-g>': '群 · <group-g>',
-    'group:<group-h>': '群 · <group-h>',
-    'private:<owner-qq>': '私聊 · 浔',
-    'private:<qq-2>': '私聊 · 餘數',
-    'private:<qq-3>': '私聊 · sudo rm rf /',
-  }
+  // 2026-11-05 14:5x 看图时把「她（私聊）」当成了另一个人——人和房间得一眼分得开。
+  // 房间名一律走配置（c.roomLabels）；没配就按号码生成，不写死任何人
+  const ROOMS = c.roomLabels || {}
   const qqProjectLabel = (m) => {
     const k = m.chatKey || '(全局)'
-    return ROOMS[k] || (k === '(全局)' ? 'QQ · 全局' : `QQ · ${k}`)
+    if (ROOMS[k]) return ROOMS[k]
+    if (k === '(全局)') return 'QQ · 全局'
+    if (k.startsWith('group:')) return '群 · ' + k.slice(6)
+    if (k.startsWith('private:')) return '私聊 · ' + k.slice(8)
+    return 'QQ · ' + k
   }
 
   const projMap = new Map() // key -> {label, side, count}
@@ -419,7 +413,7 @@ export function buildNeuron({ dsh, qq, cfg = {}, names = new Map() }) {
       for (const { room } of list) byRoom.set(room, (byRoom.get(room) || 0) + 1)
       const rooms = [...byRoom.entries()].sort((a, b) => b[1] - a[1])
         .map(([key, count]) => ({ key, label: roomName(key), count }))
-      const name = names.get(sid) || (sid === String(c.ownerId || '') ? '浔' : sid)
+      const name = names.get(sid) || (sid === String(c.ownerId || '') ? (c.ownerName || '我') : sid)
       const id = 'person:' + sid
       const body = '一共 ' + list.length + ' 条记忆的主语是他/她，分布在 ' + rooms.length + ' 处：' +
         rooms.map((r) => r.label + ' ' + r.count).join('、') + '。'

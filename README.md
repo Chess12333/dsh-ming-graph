@@ -37,10 +37,11 @@ people/_index.json（号码→昵称） ┘
 
 ## 数据源（只读）
 
-- DSH 侧：`~/.dsh/memory/notes/*.md` 的 frontmatter。**扫目录，不读 index.json**——索引会有滞后，目录才是全的。老笔记没有 `created` 就从文件名 `20261020-123127-…` 里解析。
-- QQ 侧：QQ-Agent 的 `data/memory/observations.jsonl`。**不读 `evidence.jsonl`**，那文件几十 MB，看不过来。
-- 人名：`people/_index.json`（号码 → 昵称）。昵称会改，认人只认号。
+- **DSH 侧**（默认开）：`~/.dsh/memory/notes/*.md` 的 frontmatter。**扫目录，不读 index.json**——索引会有滞后，目录才是全的。老笔记没有 `created` 就从文件名 `20261020-123127-…` 里解析。
+- **QQ 侧**（可选）：任何一行的 JSONL 观察库，路径配 `qqObservations`。**不读 evidence/原文档**——那文件几十 MB，图上用不着。
+- **人名**（可选）：`peopleIndex` 指的 `{ byId: { "<号码>": [{ name }] } }`。昵称会改，认人只认号。
 
+三个都不写死在仓库里：路径、号码、群名一律从 `~/.dsh/ming-graph.json` 读（见下面「配置」）。
 ## 路由与刷新
 
 - `GET /_dsh/dsh-ming-graph/snapshot` —— 当前快照；`/refresh` 强制重算。
@@ -65,6 +66,26 @@ node neuron-check.mjs out.json   # 指定落盘路径
 
 输出的是数据源的条数、图的规模、孤立点比例，以及人这一层的健康度。**它是自验，不是演示**：数字不对就是不对。
 
+## 配置
+
+跟某台机器绑在一起的值不进仓库，放 `~/.dsh/ming-graph.json`（或用 `MING_GRAPH_CONFIG` 指一个文件）：
+
+```json
+{
+  "qqObservations": "/path/to/QQ-Agent/data/memory/observations.jsonl",
+  "peopleIndex": "/path/to/workspace/people/_index.json",
+  "ownerId": "123456789",
+  "ownerName": "我",
+  "roomLabels": {
+    "group:123456": "群 · 某个群",
+    "private:123456789": "私聊 · 我"
+  }
+}
+```
+
+**没有这个文件也能跑**：只读 DSH 侧记忆，人名显示号码，房间按号码命名，星图中心不特指谁。
+配置项全写在 `index.js` 的 `DEFAULTS` 里，文件里的同名键就地覆盖。
+
 ## 装
 
 ```yaml
@@ -73,8 +94,6 @@ node neuron-check.mjs out.json   # 指定落盘路径
   config:
     syncSeconds: 120
 ```
-
-路径默认指向本机（`C:\dsh\...`）。换机器时在配置里改 `dshMemoryDir` / `qqObservations` / `peopleIndex`，或者用同名环境变量。
 
 **装完要看两处**：Host 起来了不等于界面在——client 半边要等一次 HMR 重载（touch `client.js` 等几秒）才会注册进 `plugins.tab`；`Slots.listSubTree` 的 occupants 里能看到 `ming-graph` 才算成。
 

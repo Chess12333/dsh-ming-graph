@@ -1,5 +1,5 @@
 /**
- * people-merge.mjs —— 把「按房间分开的人」并回一个人（2026-11-05 浔定的）
+ * people-merge.mjs —— 把「按房间分开的人」并回一个人（2026-11-05 定的）
  *
  * 她原话：「人就是人，不用分房间管，所有的不同都将汇聚成一个人，
  * 所以就算不同群、私聊还是群聊，都会汇聚到那个人上。」
@@ -30,7 +30,7 @@ export function mergePeople(graph) {
   const merged = []
   for (const [qq, list] of byQq) {
     const id = 'person:' + qq
-    // 名字：旧版标题形如「浔 · 私聊 <owner-qq>」，去掉房间尾巴
+    // 名字：旧版标题形如「名字 · 私聊 号码」，去掉房间尾巴
     const base = String(list[0].title || qq).split(' · ')[0].trim() || qq
     let count = 0
     const rooms = new Map()

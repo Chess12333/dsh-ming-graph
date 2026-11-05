@@ -12,6 +12,7 @@
  *     这种能核的关系上连边，剩下的用星图表达「有 N 条关于这个人的记忆」。
  */
 import fs from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import * as neuronStatic from './neuron.js'
@@ -26,27 +27,37 @@ let neuronLoadError = ''
 export const name = 'dsh-ming-graph'
 
 const DEFAULTS = {
-  // DSH 侧归档记忆（index.json 只有 95 条，notes 目录里有 203 份，所以扫目录）
+  // DSH 侧归档记忆（index.json 可能滞后，notes 目录才是全的，所以扫目录）
   dshMemoryDir: path.join(os.homedir(), '.dsh', 'memory'),
-  // QQ-Agent 侧的观察库
-  qqObservations: 'C:\\dsh\\qq-agent\\QQ-Agent-京玉-1019-r2-完整包\\data\\memory\\observations.jsonl',
-  // 群友档案索引（QQ 号 → 昵称；昵称会改，认人只认号）
-  peopleIndex: 'C:\\dsh\\<workspace>\\people\\_index.json',
-  ownerId: '<owner-qq>',
+  // QQ-Agent 侧的观察库；留空 = 不读 QQ 侧
+  qqObservations: '',
+  // 群友档案索引（号码 → 昵称；昵称会改，认人只认号）；留空 = 不读
+  peopleIndex: '',
+  // 星图中心那个人；留空 = 不特指谁
+  ownerId: '',
+  ownerName: '我',
   syncSeconds: 120,
   maxPeople: 120,
   maxTopics: 55,
   maxEdges: 160,
   timelineDays: 30,
-  roomLabels: {
-    'group:<group-a>': '深水区',
-    'group:<group-c>': '浅水区',
-    'group:<group-b>': '巅峰之战',
-    'private:<owner-qq>': '浔',
-    'private:<qq-2>': '餘數',
-    'private:<qq-3>': 'sudo rm rf /',
-  },
+  // 房间名：'group:<群号>' / 'private:<号码>' → 显示名
+  // 留空就按号码生成「群 <号>」「私聊 <号>」
+  roomLabels: {},
 }
+
+// ---------- 本地配置 ----------
+// 路径、号码、群名这些跟某台机器绑在一起的值不进仓库。
+// 放 ~/.dsh/ming-graph.json（或用环境变量 MING_GRAPH_CONFIG 指一个文件），
+// 仓库里只留通用默认。没有这个文件也能跑：只是不读 QQ 侧、不显示昵称。
+export function loadLocalConfig(file) {
+  const f = file || process.env.MING_GRAPH_CONFIG || path.join(os.homedir(), '.dsh', 'ming-graph.json')
+  try {
+    const j = JSON.parse(readFileSync(f, 'utf8'))
+    return j && typeof j === 'object' ? j : {}
+  } catch { return {} }
+}
+const LOCAL = loadLocalConfig()
 
 const ROUTE = '/_dsh/dsh-ming-graph'
 
@@ -204,7 +215,9 @@ async function readDsh(cfg) {
 }
 
 async function readQQ(cfg) {
-  const raw = await fs.readFile(cfg.qqObservations, 'utf8')
+  if (!cfg.qqObservations) return []
+  let raw
+  try { raw = await fs.readFile(cfg.qqObservations, 'utf8') } catch { return [] }
   const out = []
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue
@@ -356,7 +369,7 @@ export const __internals = { build, readDsh, readQQ, readPeople, DEFAULTS }
 
 // ---------- 服务 ----------
 export function apply(ctx, config) {
-  const cfg = { ...DEFAULTS, ...(config || {}) }
+  const cfg = { ...DEFAULTS, ...LOCAL, ...(config || {}) }
   let cache = null
   let cacheKey = ''
   let building = null
@@ -371,7 +384,10 @@ export function apply(ctx, config) {
   }
 
   async function keyNow() {
-    return [await stamp(cfg.qqObservations), await stamp(cfg.peopleIndex), await stamp(path.join(cfg.dshMemoryDir, 'notes'))].join('|')
+    const parts = [await stamp(path.join(cfg.dshMemoryDir, 'notes'))]
+    if (cfg.qqObservations) parts.push(await stamp(cfg.qqObservations))
+    if (cfg.peopleIndex) parts.push(await stamp(cfg.peopleIndex))
+    return parts.join('|')
   }
 
   async function snapshot() {
@@ -433,7 +449,7 @@ export function apply(ctx, config) {
         // 自查用：每次算完把当前图落一份（覆盖写）。出了「图上还是旧样子」这种事，
         // 别再靠猜——读这份就知道面板拿到的是什么。
         try {
-          const dump = 'C:/dsh/tmp/ming-graph-now.json'
+          const dump = path.join(os.tmpdir(), 'ming-graph-now.json')
           fs.writeFile(dump, JSON.stringify(nCache)).catch(() => {})
           nCache.dumpedTo = dump
         } catch {}
