@@ -12,6 +12,7 @@
  * 不编数据、不画演示点。读不到就报错，不拿假货顶上。
  */
 import fs from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 
@@ -151,6 +152,34 @@ export function keyWordsOf(text, tagHints) {
 }
 
 // ---------------- 建图 ----------------
+/**
+ * 读「召唤痕迹」账本：每条记忆被检索叫起过几次。
+ * 一笔流水 = 一格钟；不在场就没有检索，钟不走，所以热度按格衰减而不是按墙上时间。
+ * 读不到就是空表——图照画，只是没有热度。
+ */
+function readRecall(memoryDir) {
+  const byId = new Map()
+  let tick = 0
+  let raw = ''
+  try { raw = readFileSync(path.join(memoryDir, 'recall-log.jsonl'), 'utf8') } catch { return { tick, byId } }
+  for (const line of raw.split('\n')) {
+    const s = line.trim()
+    if (!s) continue
+    let row
+    try { row = JSON.parse(s) } catch { continue }
+    tick += 1
+    const ids = Array.isArray(row.ids) ? row.ids : []
+    for (const id of ids) {
+      const st = byId.get(id) || { n: 0, lastTick: 0, lastAt: '' }
+      st.n += 1
+      st.lastTick = tick
+      st.lastAt = row.at || ''
+      byId.set(id, st)
+    }
+  }
+  return { tick, byId }
+}
+
 export function buildNeuron({ dsh, qq, cfg = {}, names = new Map() }) {
   const c = { ...DEFAULTS, ...cfg }
   const now = Date.now()
@@ -172,8 +201,11 @@ export function buildNeuron({ dsh, qq, cfg = {}, names = new Map() }) {
       .slice(0, cap)
   }
 
+  const recall = readRecall(c.dshMemoryDir)
   const nodes = kept.map((m) => {
     const id = `${m.side === 'dsh' ? 'dsh' : 'qq'}:${m.rid}`
+    const h = m.side === 'dsh' ? recall.byId.get(m.rid) : null
+    const gap = h ? Math.max(0, recall.tick - h.lastTick) : 0
     return {
       id,
       kind: 'memory',
@@ -186,6 +218,9 @@ export function buildNeuron({ dsh, qq, cfg = {}, names = new Map() }) {
       type: m.type || '',
       room: m.room || m.chatKey || m.scope || '',
       subjectId: m.subjectId || '',
+      heat: h ? h.n : 0,
+      hot: h ? Math.round(Math.log1p(h.n) * Math.exp(-gap / 40) * 1000) / 1000 : 0,
+      lastRecalledAt: h ? h.lastAt : '',
     }
   })
 
@@ -450,6 +485,8 @@ export function buildNeuron({ dsh, qq, cfg = {}, names = new Map() }) {
       orphanRate: Math.round((orphans.length / (all.length || 1)) * 1000) / 10,
       dsh: nodes.filter((n) => n.side === 'dsh').length,
       qq: nodes.filter((n) => n.side === 'qq').length,
+      recalled: nodes.filter((n) => (n.heat || 0) > 0).length,
+      recallTicks: recall.tick,
     },
     nodes: all,
     edges,
@@ -460,4 +497,119 @@ function titleOfClaim(claim) {
   const s = String(claim || '').replace(/\s+/g, ' ').trim()
   const cut = s.slice(0, 28)
   return s.length > 28 ? `${cut}…` : cut
+}
+
+/* ============================================================
+ * 统一节点模型（2026-11-07）
+ *
+ * 她点头的原话：「统一吧，我们自己做深度适配做成自己的插件」，
+ * 另外说记忆卡「疑似真相源」。
+ *
+ * 所以这里只做一件事：给两个视图（神经元 / 星图）**同一份节点**。
+ * 章节的取法按她那句话来：记忆卡在，就以它的章为正本索引（chapter）；
+ * 记忆卡不在，chapter 留 null —— 视图自己按标签兜，不编。
+ * ============================================================ */
+
+/** 解析记忆卡.md：`## 第X章 标题` 切章，关键词取标题里的词 + 正文里的加粗词 */
+export function parseCard(text) {
+  const out = []
+  if (!text) return out
+  const lines = String(text).split(/\r?\n/)
+  let cur = null
+  for (const line of lines) {
+    const m = line.match(/^##\s*(第[一二三四五六七八九十]+章|\d+)\s*(.*)$/)
+    if (m) {
+      cur = { no: out.length + 1, name: (m[2] || '').trim(), keywords: [], lines: 0 }
+      out.push(cur)
+      const t = (m[2] || '').trim()
+      for (const w of t.split(/[\s、，,·—\-/（）()]+/)) if (w && w.length >= 2) cur.keywords.push(w)
+      continue
+    }
+    if (!cur) continue
+    cur.lines++
+    // 正文加粗词：记忆卡里人写的标签就是这些
+    const bolds = line.match(/\*\*([^*]{2,12})\*\*/g) || []
+    for (const b of bolds) {
+      const w = b.replace(/\*\*/g, '').trim()
+      if (w && cur.keywords.indexOf(w) < 0) cur.keywords.push(w)
+    }
+  }
+  return out
+}
+
+/**
+ * buildUnified(neuron, { card, diaries }) -> { nodes, edges, stats }
+ * neuron 就是 buildNeuron 的返回值；这里不重读文件、不重算边。
+ */
+export function buildUnified(neuron, { card = '', diaries = [] } = {}) {
+  const chapters = parseCard(card)
+  const pickChapter = (n) => {
+    if (!chapters.length) return null
+    const hay = `${n.title || ''}\n${n.body || ''}\n${(n.tags || []).join(' ')}\n${n.room || ''}`
+    let best = null
+    let score = 0
+    for (const ch of chapters) {
+      let s = 0
+      for (const k of ch.keywords) if (k && hay.indexOf(k) >= 0) s++
+      if (s > score) { score = s; best = ch }
+    }
+    return best && score > 0 ? { no: best.no, name: best.name, score } : null
+  }
+
+  const nodes = (neuron.nodes || []).map((n) => {
+    const ch = n.kind === 'memory' ? pickChapter(n) : null
+    return {
+      id: n.id,
+      kind: n.kind,
+      title: n.title || '',
+      body: n.body || '',
+      at: n.at || null,
+      date: n.at ? new Date(n.at).toISOString().slice(0, 10) : '',
+      chapter: ch ? ch.no : null,
+      chapterName: ch ? ch.name : '',
+      chapterScore: ch ? ch.score : 0,
+      project: n.projectKey || '',
+      // 2026-11-07 13:47：projectLabel 必须带出来。星图的「来源」行全靠它，
+      // 少了它所有点都判成「私聊/系统」，五行塌成最底一行。
+      projectLabel: n.projectLabel || '',
+      // 2026-11-07 13:49：room 也要带（'group:<group-a>' / 'private:xxx'）——
+      // projectLabel 是项目短名（ming / DSH 杂项），分不出是哪个群；来源只能看 room。
+      room: n.room || '',
+      people: n.subjectId ? [n.subjectId] : [],
+      tags: n.tags || [],
+      source: n.side === 'qq' ? 'qq' : n.side === 'person' ? 'person' : 'dsh',
+      excerpt: String(n.body || '').slice(0, 120),
+    }
+  })
+
+  // 日记：只进星图的时间星带，不参与神经元连边
+  for (const d of diaries) {
+    if (!d || !d.date) continue
+    nodes.push({
+      id: 'diary:' + d.date,
+      kind: 'diary',
+      title: d.title || d.date,
+      body: d.body || '',
+      at: d.at || null,
+      date: d.date,
+      chapter: null,
+      chapterName: '',
+      chapterScore: 0,
+      project: '',
+      people: [],
+      tags: d.tags || [],
+      source: 'diary',
+      excerpt: String(d.body || '').slice(0, 120),
+    })
+  }
+
+  const stats = {
+    ...(neuron.stats || {}),
+    unified: nodes.length,
+    chaptered: nodes.filter((n) => n.chapter).length,
+    chapters: chapters.length,
+    diaries: nodes.filter((n) => n.kind === 'diary').length,
+    source: chapters.length ? 'card+archive' : 'archive-only',
+  }
+  return { nodes, edges: neuron.edges || [], stats }
 }

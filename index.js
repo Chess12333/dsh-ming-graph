@@ -41,6 +41,12 @@ const DEFAULTS = {
   maxTopics: 55,
   maxEdges: 160,
   timelineDays: 30,
+  // 2026-11-07：统一节点模型的两个来源
+  // 记忆卡（星汐写的八章索引）；留空 = 不读，chapter 全为 null
+  memoryCard: '',
+  // 日记目录；留空 = 不读。只读最近 diaryDays 天
+  diaryDir: '',
+  diaryDays: 60,
   // 房间名：'group:<群号>' / 'private:<号码>' → 显示名
   // 留空就按号码生成「群 <号>」「私聊 <号>」
   roomLabels: {},
@@ -413,7 +419,9 @@ export function apply(ctx, config) {
 
   async function neuronKeyNow() {
     // neuron.js 自己也进缓存键：改了源码，下一次刷新就会加载新模块（不用重启 DSH）
+    // 召回声账本也得进键：不进的话，热度只在 notes 变动时才重算，平时看着像冻住了
     return [await stamp(cfg.qqObservations), await stamp(path.join(cfg.dshMemoryDir, 'notes')),
+      await stamp(path.join(cfg.dshMemoryDir, 'recall-log.jsonl')),
       await stamp(NEURON_FILE)].join('|')
   }
 
@@ -464,6 +472,50 @@ export function apply(ctx, config) {
     return nBuilding
   }
 
+  // ---------- 统一节点模型（2026-11-07） ----------
+  // 两个视图（神经元 / 星图）共用一份节点。这里只做「把三样东西拼起来」：
+  // buildNeuron 的结果 + 记忆卡（八章索引，可能不存在）+ 日记（时间星带）。
+  // 记忆卡不在就 chapter=null，不编——她说的「疑似真相源」落在这一行上。
+  async function readDiaries(dir, days) {
+    if (!dir) return []
+    const out = []
+    const since = Date.now() - Math.max(1, days || 60) * 86400000
+    let list = []
+    try { list = await fs.readdir(dir) } catch { return [] }
+    for (const f of list) {
+      const m = f.match(/^(\d{4}-\d{2}-\d{2})\.md$/)
+      if (!m) continue
+      const at = Date.parse(m[1] + 'T00:00:00+08:00')
+      if (!(at >= since)) continue
+      let body = ''
+      try { body = await fs.readFile(path.join(dir, f), 'utf8') } catch { continue }
+      out.push({ date: m[1], title: m[1], at, body: body.slice(0, 4000) })
+    }
+    out.sort((a, b) => (a.date < b.date ? -1 : 1))
+    return out
+  }
+
+  let uCache = null
+  let uKey = ''
+  async function unifiedSnapshot() {
+    const base = await neuronSnapshot()
+    const key = nKey + '|' + cfg.memoryCard + '|' + cfg.diaryDir + '|' + (base.generatedAt || 0)
+    if (uCache && key === uKey) return uCache
+    let card = ''
+    if (cfg.memoryCard) { try { card = await fs.readFile(cfg.memoryCard, 'utf8') } catch {} }
+    const diaries = await readDiaries(cfg.diaryDir, cfg.diaryDays)
+    const impl = await loadNeuronImpl(nKey)
+    const build = (impl && impl.buildUnified) || neuronStatic.buildUnified
+    if (typeof build !== 'function') {
+      return { ...base, stats: { ...(base.stats || {}), unifiedError: 'buildUnified 不可用（neuron.js 没导出）' } }
+    }
+    uCache = build(base, { card, diaries })
+    uCache.generatedAt = base.generatedAt || 0
+    uCache.neuronLoadError = base.neuronLoadError || ''
+    uKey = key
+    return uCache
+  }
+
   const respond = (res, status, body) => {
     res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
     res.end(JSON.stringify(body))
@@ -497,6 +549,11 @@ export function apply(ctx, config) {
             if (method === 'neurons' || method === 'neurons/refresh') {
               if (method === 'neurons/refresh') { nKey = ''; nCache = null; neuronImpl = null; neuronImplStamp = '' }
               respond(res, 200, await neuronSnapshot())
+              return
+            }
+            if (method === 'neurons/unified' || method === 'neurons/unified/refresh') {
+              if (method.endsWith('/refresh')) { nKey = ''; nCache = null; uCache = null; uKey = ''; neuronImpl = null; neuronImplStamp = '' }
+              respond(res, 200, await unifiedSnapshot())
               return
             }
             respond(res, 404, { error: 'unknown method ' + method })

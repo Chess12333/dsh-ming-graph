@@ -48,7 +48,14 @@ html,body{margin:0;height:100%;background:#0d0f14;color:#e6e8ee;font-family:syst
 <script>${view}</script>
 <script>
 const DATA = ${JSON.stringify(graph)};
-__MingNeuronView.mount(document.getElementById('app'), DATA, {});
+const view = __MingNeuronView.mount(document.getElementById('app'), DATA, {});
+// 调试入口：#plane=<id 或片段> 直接把平面展开到那个点（写代码时截图自验用）
+const m = /plane=([^&]+)/.exec(location.hash || '');
+if (m) {
+  const key = decodeURIComponent(m[1]);
+  const hit = DATA.nodes.find((n) => n.id === key) || DATA.nodes.find((n) => (n.id + ' ' + (n.title || '')).indexOf(key) >= 0);
+  if (hit) view.plane(hit.id);
+}
 </script>
 </body></html>
 `
