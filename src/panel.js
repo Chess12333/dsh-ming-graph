@@ -11,7 +11,25 @@
  *   数据只有一份，过滤只在渲染层做。
  */
 
+// 2026-11-07 21:23：版本号改成「构建那一刻」——它就是判据：面板上印的时间对不上，
+// 说明浏览器拿的还是旧 bundle（今天为此白改过两次）。
+const MG_VERSION = '2026-11-07 22:11'
+
+// 侧栏那个名字（2026-11-07 22:0x 她说的）：自己用叫「她的一生」，对外发布要另一个名字，
+// 两者不该靠改代码切换——写死一个，发布前改一遍、自己用又改回来，迟早漏。
+// 默认「她的一生」；发布版在页面里先注入 `window.__MING_GRAPH_LABEL = '...'` 即可覆盖。
+const PANEL_LABEL = (typeof window !== 'undefined' && window.__MING_GRAPH_LABEL) || '她的一生'
 const API = '/_dsh/dsh-ming-graph'
+if (typeof window !== 'undefined' && !window.__MG_ERR_HOOK) {
+  window.__MG_ERR_HOOK = 1
+  window.__MG_ERR = ''
+  window.addEventListener('error', (e) => {
+    window.__MG_ERR = String((e && e.message) || '') + ' / ' + String((e && e.error && e.error.stack) || '')
+  })
+  window.addEventListener('unhandledrejection', (e) => {
+    window.__MG_ERR = 'promise: ' + String((e && e.reason && (e.reason.stack || e.reason.message)) || e.reason || '')
+  })
+}
 
 const PAGE_CSS = `
 .mg-mount{height:100%;min-height:480px;display:flex;flex-direction:column;position:relative}
@@ -25,6 +43,8 @@ const PAGE_CSS = `
 .mg-btn:disabled{opacity:.5;cursor:default}
 /* ---- top 栏（2026-11-07） ---- */
 .mg-top{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:7px 12px;border-bottom:1px solid var(--dsw-alias-separator-secondary)}
+.mg-brand{display:inline-flex;align-items:baseline;gap:7px;margin-right:8px;font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--dsw-alias-label-primary);white-space:nowrap}
+.mg-brand i{font-style:normal;font-size:10px;font-weight:400;letter-spacing:.08em;color:var(--dsw-alias-label-secondary);opacity:.7}
 .mg-seg{display:inline-flex;border:1px solid var(--dsw-alias-separator-secondary);border-radius:6px;overflow:hidden}
 .mg-seg button{appearance:none;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font-size:12px;padding:3px 10px;cursor:pointer}
 .mg-seg button.on{background:var(--dsw-alias-bg-hover, rgba(127,127,127,.14));color:var(--dsw-alias-label-primary)}
@@ -48,7 +68,33 @@ const PAGE_CSS = `
 .mg-lg{width:15px;height:11px;border-radius:3px}
 .mg-note{display:flex;align-items:center;justify-content:center;height:100%;color:var(--dsw-alias-label-tertiary);font-size:13px;
   padding:24px;text-align:center;line-height:22px;white-space:pre-wrap}
+/* ================= 2026-11-07 19:3x 动画与可读性 =================
+   她说「给整个界面加动画过渡、更好地可读交互」。
+   原则：动的是「出现/切换」，不动位置；一个动画不超过 200ms，不做循环。 */
+@keyframes mgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@keyframes mgPop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+.mg-holder>.ming-panel,.mg-holder>.svx-root{animation:mgIn .18s ease both}
+.ming-panel{font-size:13.5px;line-height:1.72}
+.ming-card{transition:border-color .15s ease,box-shadow .15s ease}
+.ming-card:hover{border-color:var(--dsw-alias-border-l3)}
+.ming-row{padding:6px 6px;border-radius:6px;transition:background .12s ease,transform .06s ease}
+.ming-row:hover{background:var(--dsw-alias-bg-hover,rgba(127,127,127,.08))}
+.ming-row:active{transform:scale(.997)}
+.ming-btn,.mg-btn,.mg-chip,.mg-seg button{transition:color .12s ease,border-color .12s ease,background .12s ease,transform .06s ease}
+.ming-btn:active,.mg-btn:active,.mg-chip:active{transform:scale(.96)}
+.mg-seg button{position:relative}
+.mg-seg button.on::after{content:'';position:absolute;left:10px;right:10px;bottom:1px;height:1.5px;background:currentColor;border-radius:2px;animation:mgIn .16s ease both}
+.ming-sub{font-size:12px;color:var(--dsw-alias-label-secondary)}
+.ming-kpi{font-variant-numeric:tabular-nums}
+.ming-scroll{scrollbar-width:thin;scrollbar-color:rgba(127,127,127,.28) transparent}
+.ming-scroll::-webkit-scrollbar{width:9px;height:9px}
+.ming-scroll::-webkit-scrollbar-thumb{background:rgba(127,127,127,.22);border-radius:5px;border:2px solid transparent;background-clip:content-box}
+.ming-scroll::-webkit-scrollbar-thumb:hover{background:rgba(127,127,127,.42);background-clip:content-box}
+.ming-scroll::-webkit-scrollbar-track{background:transparent}
+.mg-zoom{_:_}
+.mg-zoom img{animation:mgPop .16s ease both}
 `
+
 
 // ---------------- 侧栏图标 ----------------
 // sidebar.panellist 只问「图标长什么样」：owner props = { size, active }
@@ -73,6 +119,147 @@ function GraphIcon(props) {
 // 边类型：跟 Host 的 e.kind 一一对应（ref / cokey / project / adjacent / subject）
 const WAYS = ['引用', '共词', '归属', '补边', '主语']
 
+// ---- 记忆库视图（2026-11-07） ----
+// 她说：有图就别再另开一个侧栏图标，记忆就在这张图顶上开一格。
+// 数据走 dsh-ming-memory 的只读路由，跟图没关系——一个列旧账，一个看形状。
+const MEMORY_API = '/_dsh/dsh-ming-memory'
+
+function fmtClock(ms) {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const p = (n) => String(n).padStart(2, '0')
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes())
+}
+
+// 2026-11-07 19:0x：记忆 tab 改成吃**统一节点模型**（/_dsh/dsh-ming-graph/neurons/unified），
+// 不再依赖 dsh-ming-memory 的 /list——那个插件的 Host 半端一直没能加载（exports 里没有 "."），
+// 每次打开都是 △ HTTP 404。图这边本来就把 notes 全读进来了，章也在里面，不用再绕一圈。
+function MemoryView(props) {
+  const q = (props && props.q) || ''
+  // 2026-11-07 21:4x：选中态穿过视图。外面（星图、搜索）选中了哪条，这里跟着展开；
+  // 这里点开一条，也报回上层——切回星图时对着同一颗星。之前三个视图各管各的。
+  const selId = (props && props.selId) || ''
+  const [items, setItems] = useState([])
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [openId, setOpenId] = useState('')
+  const [chap, setChap] = useState('')
+
+  const load = useCallback(() => {
+    setBusy(true)
+    setErr('')
+    return fetch('/_dsh/dsh-ming-graph/neurons/unified', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => {
+        if (d && d.error) { setErr(String(d.error)); return }
+        const rows = (d.nodes || [])
+          .filter((n) => n.kind === 'memory')
+          .map((n) => ({
+            id: n.id,
+            title: n.title || n.id,
+            body: n.body || n.excerpt || '',
+            date: n.date || '',
+            at: n.at || 0,
+            tags: (n.tags || []).join(' '),
+            source: n.source || '',
+            chapter: n.chapter || 0,
+            chapterName: n.chapterName || '',
+          }))
+          .sort((a, b) => (b.at || 0) - (a.at || 0))
+        setItems(rows)
+        if (props && props.onData) props.onData({ items: rows, total: rows.length })
+      })
+      .catch((e) => setErr(String((e && e.message) || e)))
+      .finally(() => setBusy(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!selId) return
+    if (items.some((x) => x.id === selId)) setOpenId(selId)
+  }, [selId, items])
+
+  const kw = q.trim().toLowerCase()
+  const shown = items
+    .filter((it) => (!kw ? true : (it.id + ' ' + it.title + ' ' + it.tags + ' ' + it.source).toLowerCase().indexOf(kw) >= 0))
+    .filter((it) => {
+      if (!chap) return true
+      if (chap === 'none') return !it.chapter
+      return String(it.chapter) === chap
+    })
+
+  const opened = openId ? items.find((x) => x.id === openId) : null
+  if (opened) {
+    return h('div', { className: 'ming-panel' },
+      h('div', { className: 'ming-head' },
+        h('button', { className: 'ming-btn', onClick: () => setOpenId('') }, '← 返回'),
+        h('span', { className: 'ming-title', style: { fontSize: 13 } }, opened.title),
+        opened.chapter ? h('span', { className: 'ming-pill' }, '第' + opened.chapter + '章') : null,
+        h('span', { className: 'ming-sub', style: { marginLeft: 'auto' } }, opened.date),
+      ),
+      h('div', { className: 'ming-body ming-scroll' },
+        h('div', {
+          className: 'ming-card',
+          style: { whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13.5, lineHeight: 1.85, letterSpacing: '.01em' },
+        }, opened.body || '（这条没有正文）'),
+      ),
+    )
+  }
+
+  return h('div', { className: 'ming-panel' },
+    h('div', { className: 'ming-head' },
+      h('span', { className: 'ming-sub' }, busy ? '读取中…' : items.length + ' 条记忆'),
+      h('button', { className: 'ming-btn', style: { marginLeft: 'auto' }, onClick: load }, '刷新'),
+    ),
+    h('div', { className: 'ming-body ming-scroll' },
+      err ? h('div', { className: 'ming-empty' }, '△ ' + err) : null,
+      // 按章筛选：八章 + 未分章
+      items.length ? h('div', { style: { display: 'flex', gap: 5, flexWrap: 'wrap', padding: '2px 0 8px' } },
+        ['', '1', '2', '3', '4', '5', '6', '7', '8', 'none'].map((c) => {
+          const hit = items.find((x) => String(x.chapter) === c)
+          const label = c === '' ? '全部' : c === 'none' ? '未分章' : ((hit && hit.chapterName) || ('第' + c + '章'))
+          return h('button', {
+            key: c || 'all',
+            className: 'mg-chip' + (chap === c ? ' on' : ''),
+            onClick: () => setChap(c),
+          }, label)
+        }),
+      ) : null,
+      (!err && shown.length === 0) ? h('div', { className: 'ming-empty' }, busy ? '…' : '没有匹配的记忆') : null,
+      h('div', null, shown.map((it) => h('div', {
+        key: it.id,
+        className: 'ming-row',
+        style: { cursor: 'pointer' },
+        onClick: () => { setOpenId(it.id); if (props.onSelect) props.onSelect(it.id) },
+        title: it.id,
+      },
+        h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, it.title),
+        it.chapter ? h('span', { className: 'ming-pill' }, '第' + it.chapter + '章') : null,
+        h('span', { className: 'ming-sub' }, it.date || ''),
+      ))),
+    ),
+  )
+}
+
+// 2026-11-07 16:30 加、19:1x 补回（做记忆 tab 替换时被一并切掉了，于是面板一崩就整块黑）。
+class PanelBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { err: '' } }
+  static getDerivedStateFromError(e) { return { err: String((e && e.stack) || e) } }
+  componentDidCatch(e) {
+    try {
+      this.setState({ err: String((e && e.stack) || e) + ' / 最近一条全局错误：' + String(window.__MG_ERR || '(无)') })
+    } catch (x) {}
+  }
+  render() {
+    if (this.state.err) {
+      return h('div', { style: { padding: '14px 18px', fontFamily: 'ui-monospace, Consolas, monospace', fontSize: '12px', lineHeight: '18px', whiteSpace: 'pre-wrap', color: 'var(--dsw-alias-state-error-primary)', overflow: 'auto', height: '100%' } },
+        '家底崩了（v' + MG_VERSION + '）：' + this.state.err)
+    }
+    return this.props.children
+  }
+}
+
 function NeuronPanel() {
   const holder = useRef(null)
   const viewRef = useRef(null)
@@ -81,6 +268,11 @@ function NeuronPanel() {
   const [busy, setBusy] = useState(false)
   const [info, setInfo] = useState(null)
   const [view, setView] = useState('neuron')      // neuron | star
+  // 2026-11-07 21:4x：一个选中态穿过三个视图（神经元的搜索 / 星图点星 / 记忆列表）。
+  // selRef 是给「挂载那一刻」用的：星图 effect 的闭包里拿不到最新的 selId。
+  const [selId, setSelId] = useState('')
+  const selRef = useRef('')
+  useEffect(() => { selRef.current = selId }, [selId])
   const [q, setQ] = useState('')
   const [ways, setWays] = useState(WAYS.slice())
   const starHost = useRef(null)
@@ -99,6 +291,8 @@ function NeuronPanel() {
     return fetch(url, { cache: 'no-store' })
       .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
       .then((d) => {
+        // 2026-11-07 22:1x：群号/群名从本机配置下发，不写进代码（这个仓是公开的）。
+        if (d && d.roomLabels) { try { window.__MING_ROOMS = d.roomLabels } catch (e) {} }
         if (d && d.error) { setErr(String(d.error)); setStatus('error'); return }
         if (!window.__MingNeuronView) { setErr('渲染层没装上（neuron-view 未加载）'); setStatus('error'); return }
         if (viewRef.current && viewRef.current.destroy) viewRef.current.destroy()
@@ -136,15 +330,37 @@ function NeuronPanel() {
     setWays((cur) => (cur.indexOf(t) >= 0 ? cur.filter((x) => x !== t) : cur.concat([t])))
   }
 
+  const memRef = useRef(null)
+  const [reloadTick, setReloadTick] = useState(0)
+  // 2026-11-07 18:3x：星图那份 unified 是带缓存的。记忆卡刚生成、面板还显示 0 章，
+  // 就是因为重挂只会再打一次 /neurons/unified（命中缓存）。点刷新要强制重建。
+  const forceStar = useRef(false)
+
+  // 导出：三个视图都出东西——神经元出图、星图出统一模型、记忆出当前列表。
   function exportJson() {
-    const snap = viewRef.current && viewRef.current.snapshot ? viewRef.current.snapshot() : null
+    let snap = null
+    let tag = 'neurons'
+    if (view === 'neuron') {
+      snap = viewRef.current && viewRef.current.snapshot ? viewRef.current.snapshot() : null
+    } else if (view === 'star') {
+      snap = starData; tag = 'unified'
+    } else if (view === 'memory') {
+      snap = memRef.current; tag = 'archive'
+    }
     if (!snap) return
     const blob = new Blob([JSON.stringify(snap, null, 1)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = 'ming-neurons-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '') + '.json'
+    a.download = 'ming-' + tag + '-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '') + '.json'
     document.body.appendChild(a); a.click(); a.remove()
     setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+  }
+
+  function refreshAll() {
+    setReloadTick((t) => t + 1)
+    setQ('')
+    if (view === 'neuron') load(true)
+    if (view === 'star') forceStar.current = true
   }
 
   // 星图：吃同一份统一节点模型（/neurons/unified），画法在 src/star-view.js
@@ -154,81 +370,42 @@ function NeuronPanel() {
       setStarState('idle')
       return
     }
-    if (starRef.current) return
     setStarState('loading')
     let alive = true
-    fetch(API + '/neurons/unified', { cache: 'no-store' })
+    const starUrl = API + (forceStar.current ? '/neurons/unified/refresh' : '/neurons/unified')
+    forceStar.current = false
+    fetch(starUrl, { cache: 'no-store' })
       .then((r) => {
         setStarInfo('HTTP ' + r.status)
         if (!r.ok) throw new Error('HTTP ' + r.status)
         return r.json()
       })
       .then((d) => {
+        if (d && d.roomLabels) { try { window.__MING_ROOMS = d.roomLabels } catch (e) {} }
         if (!alive) return
         if (d && d.error) { setStarErr(String(d.error)); setStarState('error'); return }
         if (!window.__MingNeuronView) { setStarErr('渲染层没装上（neuron-view 未加载）'); setStarState('error'); return }
         const nNodes = (d.nodes || []).length
         setStarInfo(`HTTP 200 · 节点 ${nNodes} · ${d.stats && d.stats.source || ''}`)
-        // 2026-11-07 12:58：上一版只量了 starHost，量不出真正的问题（它 360，但里面可能是 0）。
-        // mount 之后延迟再量一次 stage 和 canvas —— 画不出来只有两种可能：尺寸 0，或者坐标没落在画布上。
-        const probe = (tag) => {
-          try {
-            const st = starHost.current && starHost.current.querySelector('.nv-stage')
-            const cv = starHost.current && starHost.current.querySelector('canvas')
-            const host = starHost.current
-            setStarInfo(`${tag} · 节点 ${nNodes} · host ${host ? host.clientWidth + '×' + host.clientHeight : '无'}` +
-              ` · stage ${st ? st.clientWidth + '×' + st.clientHeight : '无'}` +
-              ` · canvas ${cv ? cv.width + '×' + cv.height : '无'}` +
-              (window.__NV_DEBUG ? ' · ' + JSON.stringify(window.__NV_DEBUG) : ' · 无DEBUG'))
-          } catch (e) { setStarInfo(tag + ' · 测量失败 ' + e.message) }
+        // 2026-11-07 15:00：不画 canvas 了，改用 DOM 版银河（src/star-view.js 重写）。
+        // 这一版每个点是一个 div，画不出来只可能是「没挂上」，不可能是「画错了」。
+        const SV = window.__MingStarView
+        if (!SV) { setStarErr('星图渲染层没装上（star-view 未加载）'); setStarState('error'); return }
+        try {
+          if (starRef.current && starRef.current.destroy) starRef.current.destroy()
+          starRef.current = SV.mount(starHost.current, d, { onSelect: setSelId, initialId: selRef.current })
+          const st = (starRef.current.stats && starRef.current.stats()) || {}
+          setStarInfo('节点 ' + nNodes + ' · 已画 ' + (st.dots || 0) + ' 点 · ' + (st.size ? st.size[0] + '×' + st.size[1] : '') + ' · ' + ((d.stats && d.stats.source) || ''))
+          setStarState('ready')
+        } catch (e) {
+          setStarErr('挂载失败：' + String((e && e.message) || e))
+          setStarState('error')
         }
-        probe('挂载后')
-        // 2026-11-07 12:25：她说「照着神经元改，别自己想代码」——
-        // 星图现在就是同一套渲染（3D 球面、光晕、拖拽、侧栏、plane 详情），
-        // 只把布局换成 galaxy（核球 + 旋臂 + 时间环），不画边。
-        // 2026-11-07 13:50：不走 canvas 了。今天在画布上耗了一小时——投影、尺寸链、RO 抖动，
-        // 每一层都能让图变成空白。换成纯 DOM 网格：没有画布，就不存在"画不出来"。
-        setStarData(d)
-        setStarState('ready')
       })
       .catch((e) => { if (alive) { setStarErr(String((e && e.message) || e)); setStarState('error') } })
     return () => { alive = false }
-  }, [view])
+  }, [view, reloadTick])
 
-  // 2026-11-07 13:51：DOM 网格的数据，一次算好；渲染只用 div，不碰 canvas。
-  const grid = (() => {
-    const nodes = (starData && starData.nodes) || []
-    if (!nodes.length) return null
-    const ROWS = ['深水区', '巅峰之战', '浅水区', '其他群', '私聊', '系统']
-    const rowOf = (n) => {
-      const r = String(n.room || '')
-      if (r.includes('<group-a>')) return 0
-      if (r.includes('<group-b>')) return 1
-      if (r.includes('<group-c>')) return 2
-      if (r.startsWith('group')) return 3
-      if (r.startsWith('private')) return 4
-      return 5
-    }
-    const timed = nodes.filter((n) => n.at)
-    const t0 = timed.length ? Math.min(...timed.map((n) => n.at)) : Date.now()
-    const t1 = timed.length ? Math.max(...timed.map((n) => n.at)) : Date.now()
-    const DAY = 86400000
-    const days = Math.max(1, Math.floor((t1 - t0) / DAY) + 1)
-    const cell = new Map()
-    const rowCount = ROWS.map(() => 0)
-    let max = 0
-    for (const n of nodes) {
-      const ri = rowOf(n)
-      rowCount[ri]++
-      const d = n.at ? Math.floor((n.at - t0) / DAY) : 0
-      const k = ri * 10000 + d
-      const v = (cell.get(k) || 0) + 1
-      cell.set(k, v)
-      if (v > max) max = v
-    }
-    const label = (d) => new Date(t0 + d * DAY).toISOString().slice(5, 10)
-    return { ROWS, days, cell, rowCount, max: Math.max(1, max), label, total: nodes.length }
-  })()
 
   const when = info && info.at ? new Date(info.at).toLocaleTimeString('zh-CN', { hour12: false }) : ''
   const meta = info
@@ -238,96 +415,108 @@ function NeuronPanel() {
   // 星图那一格：真的接上了（2026-11-07），数据来自 /neurons/unified，画法是 src/star-view.js。
 
   return h('div', { className: 'mg-mount' },
-    h('style', null, PAGE_CSS),
+    h('style', null, PAGE_CSS + MING_UI.css('ming')),
 
     // ---- top 栏：全局操作 ----
     h('div', { className: 'mg-top' },
+      // 2026-11-07 21:53 她定：名字用回「她的一生」，括号里挂 hers life。
+      // 上一轮我起的「家底」她不要——名字是她的，我改回来，理由记在 live/星图合并 里。
+      h('span', { className: 'mg-brand' }, '她的一生', h('i', null, 'hers life')),
+      // tab 分两组：竖线左边是记下来的，右边是我干活用的。
       h('div', { className: 'mg-seg' },
-        h('button', { className: view === 'neuron' ? 'on' : '', onClick: () => setView('neuron') }, '神经元'),
-        h('button', { className: view === 'star' ? 'on' : '', onClick: () => setView('star') }, '星图'),
+        [['neuron', '神经元'], ['star', '星图'], ['memory', '记忆'], ['|'],
+          ['browse', '自己玩'], ['interest', '兴趣'], ['voice', '声音'], ['desktop', '桌面'], ['resume', '接续']]
+          .map(([k, label]) => k === '|'
+            ? h('span', { key: 'sep', style: { width: 1, height: 18, background: 'var(--dsw-alias-border-secondary, rgba(150,150,170,.28))', margin: '0 4px', alignSelf: 'center' } })
+            : h('button', { key: k, className: view === k ? 'on' : '', onClick: () => setView(k) }, label)),
       ),
+      // 2026-11-07 15:0x：搜索三个视图共用——神经元过滤节点、星图定位一颗星、记忆过滤列表。
       h('input', {
         className: 'mg-input',
-        placeholder: '搜标题 / 正文里的词',
+        placeholder: view === 'memory' ? '按 id / 标签 / 来源过滤' : (view === 'star' ? '找一颗星：标题或正文里的词'
+          : view === 'neuron' ? '搜标题 / 正文里的词' : '（这个视图不用搜）'),
+        disabled: view === 'browse' || view === 'interest' || view === 'voice' || view === 'desktop' || view === 'resume',
         value: q,
-        disabled: view !== 'neuron' || status !== 'ready',
         onChange: (e) => setQ(e.target.value),
       }),
-      h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+      view === 'neuron' ? h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
         WAYS.map((t) => h('button', {
           key: t,
           className: 'mg-chip' + (ways.indexOf(t) >= 0 ? ' on' : ''),
-          disabled: view !== 'neuron' || status !== 'ready',
+          disabled: status !== 'ready',
           title: '关掉这一类边，节点不删',
           onClick: () => toggleWay(t),
         }, t)),
-      ),
+      ) : null,
       h('span', { className: 'mg-gap' }),
-      h('button', { className: 'mg-btn', disabled: view !== 'neuron' || status !== 'ready', onClick: exportJson, title: '把这整份图导出成 JSON' }, '导出'),
+      h('button', {
+        className: 'mg-btn',
+        disabled: view === 'neuron' ? status !== 'ready' : (view === 'star' ? starState !== 'ready' : false),
+        onClick: exportJson,
+        title: view === 'memory' ? '导出当前这份归档列表' : (view === 'star' ? '导出统一节点模型' : '把这整份图导出成 JSON'),
+      }, '导出'),
       h('button', {
         className: 'mg-btn',
         disabled: busy,
-        title: '重读两侧记忆库，并重新加载建图代码（改了 neuron.js 也按这个就生效）',
-        onClick: () => load(true),
+        title: '重读数据源（神经元顺带重新加载建图代码）',
+        onClick: refreshAll,
       }, busy ? '刷新中…' : '刷新'),
     ),
 
     // ---- 第二行：状态（切到星图时也用它报状态，免得"点了没反应"看不出是卡在哪） ----
     h('div', { className: 'mg-bar' },
       h('span', { className: 'mg-meta' },
-        view === 'neuron'
-          ? (status === 'ready' ? meta : '')
-          : (starState === 'error' ? '星图读不到：' + starErr
-            : starState === 'ready' ? '星图 · 统一节点模型已加载'
-              : '星图 · 正在拼统一节点模型…')),
+        view === 'browse' ? '自己玩 · 什么时候醒，看什么，记了什么'
+          : view === 'interest' ? '兴趣 · 叫不叫得醒，还有为什么'
+            : view === 'voice' ? '声音 · 合出来的 mp3，点 ▶ 试听'
+              : view === 'desktop' ? '桌面 · 这只手最近看见的和说出来的'
+                : view === 'resume' ? '接续 · 现在在做哪件事，被打断过几次'
+              : view === 'memory'
+          ? '记忆库 · 只读，点一行看正文'
+          : view === 'neuron'
+            ? (status === 'ready' ? meta : '')
+            : (starState === 'error' ? '星图读不到：' + starErr
+              : starState === 'ready' ? ('星图 · ' + (starInfo || '已加载'))
+                : '星图 · 正在拼统一节点模型…')),
     ),
 
     // 2026-11-07 12:37：报错 `Cannot set properties of null (setting 'innerHTML')`。
     // 根因：星图那个 div 是条件渲染的，effect 跑的那一瞬 ref 还是 null，mount 里 host.innerHTML 就炸在这。
     // 改成**两个容器都常驻**、只用 display 切换：ref 从挂载起一直有效，切换时不再有「还没有节点」的空窗。
+    // 记忆库（跟另外两块并列，同样靠 display 切换；切走就卸载，省得一直挂着轮询）
+    h('div', { key: 'mem' + reloadTick, className: 'mg-holder', style: view === 'memory' ? null : { display: 'none' } },
+      view === 'memory' ? h(MemoryView, { q, selId, onSelect: setSelId, onData: (d) => { memRef.current = d } }) : null,
+    ),
+    // 逛到哪儿 / 兴趣 / 声音：从各自的插件搬进来的渲染，路由还是各自的
+    h('div', { key: 'browse' + reloadTick, className: 'mg-holder', style: view === 'browse' ? null : { display: 'none' } },
+      view === 'browse' ? h(BrowsePanel) : null,
+    ),
+    h('div', { key: 'interest' + reloadTick, className: 'mg-holder', style: view === 'interest' ? null : { display: 'none' } },
+      view === 'interest' ? h(InterestPanel) : null,
+    ),
+    h('div', { key: 'voice' + reloadTick, className: 'mg-holder', style: view === 'voice' ? null : { display: 'none' } },
+      view === 'voice' ? h(VoicePanel) : null,
+    ),
+    // 2026-11-07 19:1x 她说「还是别合并了」：桌面和接续各留一格。
+    h('div', { key: 'desktop' + reloadTick, className: 'mg-holder', style: view === 'desktop' ? null : { display: 'none' } },
+      view === 'desktop' ? h(DesktopPanel) : null,
+    ),
+    h('div', { key: 'resume' + reloadTick, className: 'mg-holder', style: view === 'resume' ? null : { display: 'none' } },
+      view === 'resume' ? h(ResumePanel) : null,
+    ),
+
     h('div', {
       ref: holder, className: 'mg-holder',
       style: view === 'neuron' && status === 'ready' ? null : { display: 'none' },
     }),
+    // 星图：DOM 版银河（src/star-view.js），mount 到这个 ref；切走就 destroy，别让 1271 个 div 一直挂着。
+    // 2026-11-07 18:1x：这个 div 里**只能有我挂的东西**。上一版把「加载中/读不到」两行字也渲染在里面，
+    // star-view 挂载时 host.innerHTML='' 把它们清掉了，React 回头要删这两行 —— 它已经不在 DOM 里，
+    // 于是 NotFoundError: removeChild。提示挪到外面，容器本身永远空着。
     h('div', { className: 'mg-holder', style: view === 'star' ? null : { display: 'none' } },
-      h('div', { className: 'mg-bar', style: { padding: '7px 16px' } },
-        h('b', { style: { fontSize: 13, color: 'var(--dsw-alias-label-primary)', marginRight: 10 } }, '记忆地图'),
-        h('span', { className: 'mg-meta' }, grid ? (grid.total + ' 条 · 跨 ' + grid.days + ' 天') : '')),
       starState === 'loading' ? h('div', { className: 'mg-msg' }, '正在拼统一节点模型…') : null,
       starState === 'error' ? h('div', { className: 'mg-msg err' }, '星图读不到：' + starErr) : null,
-      grid ? h('div', { className: 'mg-gridwrap' },
-        h('div', { className: 'mg-grid', style: { gridTemplateColumns: '96px repeat(' + grid.days + ', minmax(10px, 1fr))' } },
-          grid.ROWS.flatMap((name, ri) => [
-            h('div', { key: 'l' + ri, className: 'mg-rl' }, name, h('b', null, String(grid.rowCount[ri]))),
-            ...Array.from({ length: grid.days }, (_, d) => {
-              const n = grid.cell.get(ri * 10000 + d) || 0
-              const t = n ? Math.min(1, Math.pow(n / grid.max, 0.72)) : 0
-              return h('div', {
-                key: ri + '-' + d,
-                className: 'mg-cell',
-                title: grid.label(d) + ' · ' + name + ' · ' + n + ' 条',
-                style: n
-                  ? {
-                    background: 'rgba(45,212,191,' + (0.12 + 0.78 * t).toFixed(2) + ')',
-                    boxShadow: t > 0.8 ? '0 0 9px rgba(45,212,191,.45)' : undefined,
-                  }
-                  : { background: 'rgba(255,255,255,.035)' },
-              })
-            }),
-          ]),
-        ),
-        h('div', { className: 'mg-grid mg-xaxis', style: { gridTemplateColumns: '96px repeat(' + grid.days + ', minmax(10px, 1fr))' } },
-          h('div', { key: 'x0' }),
-          ...Array.from({ length: grid.days }, (_, d) => h('div', { key: 'x' + d, className: 'mg-xt' }, d % 4 === 0 ? grid.label(d) : '')),
-        ),
-        h('div', { className: 'mg-legend' },
-          h('span', null, '少'),
-          [0.18, 0.38, 0.58, 0.78, 0.9].map((a, i) =>
-            h('span', { key: 'g' + i, className: 'mg-lg', style: { background: 'rgba(45,212,191,' + a + ')' } })),
-          h('span', null, '多'),
-          h('span', { style: { marginLeft: 14, opacity: .7 } }, '共 ' + grid.total + ' 条 · ' + grid.days + ' 天'),
-        ),
-      ) : null,
+      h('div', { ref: starHost, style: { flex: 1, minHeight: '420px', display: 'flex', flexDirection: 'column' } }),
     ),
 
     view === 'neuron' && status === 'loading' ? h('div', { className: 'mg-msg' }, '正在读两侧记忆库…（第一次要扫一遍文件，大约两秒）') : null,
@@ -341,12 +530,12 @@ return {
     ctx.slots.inject('main', () => ctx.slots.register({
       name: 'main',
       key: 'ming-graph',
-    }, NeuronPanel))
+    }, () => h(PanelBoundary, null, h(NeuronPanel))))
     ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
       name: 'sidebar.panellist',
       id: 'ming-graph',
       order: 22,
-      label: () => '关系图',
+      label: () => PANEL_LABEL,
     }, GraphIcon))
   },
 }

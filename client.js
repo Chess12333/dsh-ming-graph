@@ -16,6 +16,126 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     const { useState, useEffect, useRef, useCallback } = React
 
+// ⚠ 由 dsh-ming-ui/sync.mjs 生成，不要手改。改 C:\dsh\dsh-ming-ui\src\theme.js
+/**
+ * dsh-ming-ui —— 我们自己那批插件的共用皮（2026-11-07 立）
+ *
+ * 一条规矩：**只写 --dsw-alias-* token，不写死颜色、不写死 px 颜色值**。
+ * 现在宿主是浅色，`dsh-myskin` 换主题时这些面板要跟着变；写死一个 #fff，
+ * 深色底下就是一整块白。
+ *
+ * 为什么是这么个怪文件：各插件的 build.mjs 是「读源码文本 → 拼进 client.js」，
+ * 不是真打包。所以这份源码里不能出现 import/export（拼进 CJS 工厂会炸），
+ * 写成 IIFE 挂在 MING_UI 上；末尾留一句 module.exports，Node 里也能 require。
+ *
+ * 用法（插件里）：
+ *   const MING_UI = require('./theme.js')   // 或者直接内联，同名变量已在作用域里
+ *   style.textContent = MING_UI.css('ming') // 前缀用来避开宿主的同名类
+ *   尺寸走 MING_UI.SCALE，颜色走 MING_UI.TOKENS.xxx
+ *
+ * 这一份是**唯一源**。改这里，然后 `node sync.mjs` 推到各插件的 src/theme.js。
+ */
+const MING_UI = (() => {
+  /** 颜色：全部对到宿主的 alias token。名字按「用在哪」取，不按色值取。 */
+  const TOKENS = {
+    bg: 'var(--dsw-alias-bg-base)',
+    surface: 'var(--dsw-alias-bg-layer-1)',
+    surfaceAlt: 'var(--dsw-alias-bg-layer-2)',
+    overlay: 'var(--dsw-alias-bg-overlay)',
+    border: 'var(--dsw-alias-border-l2)',
+    borderSoft: 'var(--dsw-alias-border-l1)',
+    borderStrong: 'var(--dsw-alias-border-l3)',
+    separator: 'var(--dsw-alias-separator-secondary)',
+    text: 'var(--dsw-alias-label-primary)',
+    textDim: 'var(--dsw-alias-label-secondary)',
+    textFaint: 'var(--dsw-alias-label-tertiary)',
+    accent: 'var(--dsw-alias-brand-primary)',
+    hover: 'var(--dsw-alias-interactive-bg-hover)',
+    active: 'var(--dsw-alias-interactive-bg-active)',
+    danger: 'var(--dsw-alias-state-error-primary)',
+    warn: 'var(--dsw-alias-state-warn-primary)',
+    ok: 'var(--dsw-alias-state-success-primary)',
+  }
+
+  /** 尺子：间距/圆角/字号只从这里取，别在组件里现编一个 7px。 */
+  const SCALE = {
+    gap: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 },
+    radius: { sm: 6, md: 10, lg: 14 },
+    font: { xs: 11, sm: 12, md: 13, lg: 15, xl: 18, hero: 22 },
+    line: 1.55,
+  }
+
+  /**
+   * 生成一份样式表。prefix 默认 ming，用来避开宿主或其他插件的同名类。
+   * 面板骨架只有六个：panel / head / card / row / stat / empty。多一个算我输。
+   */
+  function css(prefix) {
+    const p = prefix || 'ming'
+    const S = SCALE
+    return `
+.${p}-panel {
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  background: ${TOKENS.bg}; color: ${TOKENS.text};
+  font-size: ${S.font.md}px; line-height: ${S.line};
+}
+.${p}-head {
+  display: flex; align-items: center; gap: ${S.gap.md}px;
+  padding: ${S.gap.md}px ${S.gap.lg}px; border-bottom: 1px solid ${TOKENS.separator};
+  flex: 0 0 auto;
+}
+.${p}-title { font-size: ${S.font.lg}px; font-weight: 600; color: ${TOKENS.text}; }
+.${p}-sub { font-size: ${S.font.sm}px; color: ${TOKENS.textFaint}; }
+.${p}-body {
+  flex: 1 1 auto; min-height: 0; overflow: auto;
+  padding: ${S.gap.lg}px; display: flex; flex-direction: column; gap: ${S.gap.md}px;
+}
+.${p}-card {
+  background: ${TOKENS.surface}; border: 1px solid ${TOKENS.borderSoft};
+  border-radius: ${S.radius.md}px; padding: ${S.gap.md}px ${S.gap.lg}px;
+}
+.${p}-row {
+  display: flex; align-items: center; gap: ${S.gap.md}px;
+  padding: ${S.gap.sm}px ${S.gap.md}px; border-radius: ${S.radius.sm}px;
+  border-bottom: 1px solid ${TOKENS.separator};
+}
+.${p}-row:last-child { border-bottom: none; }
+.${p}-row:hover { background: ${TOKENS.hover}; }
+.${p}-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.${p}-kpi { font-size: ${S.font.hero}px; font-weight: 600; color: ${TOKENS.text}; letter-spacing: -0.02em; }
+.${p}-empty {
+  margin: auto; padding: ${S.gap.xl}px; text-align: center;
+  color: ${TOKENS.textFaint}; font-size: ${S.font.sm}px;
+}
+.${p}-pill {
+  display: inline-flex; align-items: center; gap: ${S.gap.xs}px;
+  padding: 1px 8px; border-radius: 999px; font-size: ${S.font.xs}px;
+  background: ${TOKENS.surfaceAlt}; color: ${TOKENS.textDim};
+  border: 1px solid ${TOKENS.borderSoft};
+}
+.${p}-pill[data-tone="ok"] { color: ${TOKENS.ok}; border-color: ${TOKENS.ok}; }
+.${p}-pill[data-tone="warn"] { color: ${TOKENS.warn}; border-color: ${TOKENS.warn}; }
+.${p}-pill[data-tone="danger"] { color: ${TOKENS.danger}; border-color: ${TOKENS.danger}; }
+.${p}-btn {
+  font: inherit; font-size: ${S.font.sm}px; cursor: pointer;
+  padding: ${S.gap.xs}px ${S.gap.md}px; border-radius: ${S.radius.sm}px;
+  background: ${TOKENS.surfaceAlt}; color: ${TOKENS.text};
+  border: 1px solid ${TOKENS.border};
+}
+.${p}-btn:hover { background: ${TOKENS.hover}; }
+.${p}-btn:active { background: ${TOKENS.active}; }
+.${p}-btn[data-primary="1"] { background: ${TOKENS.accent}; color: #fff; border-color: transparent; }
+.${p}-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.${p}-scroll::-webkit-scrollbar-thumb { background: var(--dsw-alias-scrollbar-bg-l1); border-radius: 4px; }
+.${p}-scroll::-webkit-scrollbar-thumb:hover { background: var(--dsw-alias-scrollbar-hover-l1); }
+`
+  }
+
+  return { TOKENS, SCALE, css, version: '0.1.0' }
+})()
+
+if (typeof module !== 'undefined' && module.exports) module.exports = MING_UI
+
+
 /**
  * neuron-view.js —— 「记忆神经元」渲染层（纯 DOM + Canvas，不依赖 React）
  *
@@ -187,17 +307,24 @@ window.__ModuleLoader__.load({
     // 前 4 个占 72%，按它分行必然塌成一条带。数据里唯一分布均匀的维度是**来源**，
     // 所以压成 5 类：两个大群 + 浅水区 + 其他群 + 私聊/系统。
     // 横轴按「天」分桶，同一天的点叠在一列里——重叠处自然变亮，就是热力的效果。
-    const ROWS = ['深水区', '巅峰之战', '浅水区', '其他群', '私聊', '系统']
+    // 2026-11-07 22:1x：群号不进仓库（这个仓是公开的）。行名和归属由本机配置下发——
+    // panel 把 /neurons 返回里的 roomLabels 挂到 window.__MING_ROOMS。
+    // 没配就只剩「其他群/私聊/系统」三行，布局照旧，不崩。
+    const ROOM_MAP = (typeof window !== 'undefined' && window.__MING_ROOMS) || {}
+    const ROOM_ROWS = Object.keys(ROOM_MAP)
+      .filter((k) => k.startsWith('group:'))
+      .slice(0, 3)
+      .map((k) => ({ key: k, label: String(ROOM_MAP[k] || '').replace(/^群\s*·\s*/, '') || '群' }))
+    const ROWS = ROOM_ROWS.map((r) => r.label).concat(['其他群', '私聊', '系统'])
     const rowOf = new Map(ROWS.map((r, i) => [r, i]))
     const rowY = (i) => (ROWS.length <= 1 ? 0 : -1 + (i / (ROWS.length - 1)) * 2)
-    // 2026-11-07 13:49：来源只能看 room（'group:<group-a>' 这种）。
+    // 2026-11-07 13:49：来源只能看 room（'group:<id>' 这种）。
     // projectLabel 是项目短名（ming / DSH 杂项），分不出是哪个群——用它分五行，
     // 1001 条全落进「私聊/系统」，又是一条底带。这次先量过字段值才写。
     const rowKey = (n) => {
       const room = String(n.room || '')
-      if (room.includes('<group-a>')) return '深水区'
-      if (room.includes('<group-b>')) return '巅峰之战'
-      if (room.includes('<group-c>')) return '浅水区'
+      const hit = ROOM_ROWS.find((r) => r.key === room)
+      if (hit) return hit.label
       if (room.startsWith('group')) return '其他群'
       if (room.startsWith('private')) return '私聊'
       return '系统'
@@ -1228,46 +1355,56 @@ window.__ModuleLoader__.load({
 
 
 /**
- * star-view.js —— 星图视图（银河系版，2026-11-07 12:15 重写）
+ * star-view.js —— 星图视图（银河系 · DOM 版）
  *
- * 上一版把 1153 条记忆全塞进一个圆里，糊成一团。这一版按她的要求做成「银河系」：
+ * 2026-11-07 15:00 重写。上一版是 canvas，今天在画布上耗了一小时：投影、尺寸链、RO 抖动，
+ * 每一层都能让图变成空白，而且「空白」和「没加载」长得一模一样。13:50 一度退成色块网格。
  *
- *   核心   人 + 项目，亮、密、在正中（相当于核球）
- *   旋臂   记忆按主题（第一个 tag）分成 5 条 + 杂项 1 条，沿对数螺旋铺开，越新越靠外
- *   景深   每个点有自己的 z，投影后按深度给透明度和大小（远的暗、近的亮）
- *   时间环 最外圈一条淡环，按日期把日记钉上去，像银河盘的边缘
- *   雾     三层极淡的径向渐变 + 旋臂描边，撑出「有东西在那里」的体积感
+ * 这一版不碰 canvas：每个点就是一个 div，位置用 translate3d，大小用 scale，
+ * 景深用透明度。1271 个 div 的 transform 每帧刷新，比一次 drawImage 稳得多——
+ * 画不出来只可能是「没挂上」，不可能是「画错了」。
  *
- * 数据仍然只吃统一节点模型（/neurons/unified）：画出来的每个点都能点回它自己。
- * 不自动旋转（省电、也省得画面一直在动）；拖动转、滚轮缩放，松手就停。
+ * 布局照旧（12:15 那版，她说的「银河系」）：
+ *   核心   人 + 项目，亮、密、在正中
+ *   旋臂   记忆按第一个 tag 分 5 条 + 杂项，沿对数螺旋铺开，越新越靠外
+ *   时间环 最外圈一条淡环，按日期钉日记
+ *   雾     三层极淡的径向渐变，撑体积
+ * 数据只吃统一节点模型（/neurons/unified）：点开的每个点都能回它自己。
  */
 ;(function () {
   'use strict'
 
   const ARM_COLORS = ['#5b8def', '#14b8a6', '#e0803a', '#e05a8a', '#a78bfa', '#8b8f96']
   const KIND_COLOR = { memory: '#14b8a6', diary: '#c9cdd4', person: '#e05a8a', project: '#5b8def' }
-  const ARM_COUNT = 5          // 主题臂数量，剩下的进「杂项」
+  const ARM_COUNT = 8          // 主题臂数量，剩下的进「杂项」
   const CORE_SHARE = 0.12      // 核球占半径的比例
+  const DOT = 10               // 每个点的基准边长(px)，真大小靠 scale
 
   const CSS = `
-.sv-root{position:relative;display:flex;flex-direction:column;height:100%;min-height:0}
-.sv-head{display:flex;align-items:center;gap:10px;padding:6px 12px;font-size:12px;color:var(--dsw-alias-label-tertiary);border-bottom:1px solid var(--dsw-alias-separator-secondary)}
-.sv-body{flex:1;min-height:0;display:flex}
-.sv-stage{flex:1;min-width:0;position:relative;overflow:hidden}
-.sv-stage canvas{display:block;width:100%;height:100%;cursor:grab}
-.sv-stage canvas.drag{cursor:grabbing}
-.sv-side{width:280px;flex:0 0 280px;border-left:1px solid var(--dsw-alias-separator-secondary);overflow:auto;padding:10px 12px;font-size:12.5px;line-height:19px;color:var(--dsw-alias-label-secondary)}
-.sv-side h4{margin:0 0 6px;font-size:13px;color:var(--dsw-alias-label-primary);font-weight:600}
-.sv-side .d{color:var(--dsw-alias-label-tertiary);font-size:11.5px;margin-bottom:8px}
-.sv-side .b{white-space:pre-wrap;word-break:break-word}
-.sv-side .empty{color:var(--dsw-alias-label-tertiary);font-size:12px}
-.sv-side .arm{margin-top:10px;font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
-.sv-side .arm i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
-.sv-legend{display:flex;gap:10px;align-items:center;font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
-.sv-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.svx-root{position:relative;display:flex;flex-direction:column;height:100%;min-height:0}
+.svx-head{display:flex;align-items:center;gap:10px;padding:6px 12px;font-size:12px;color:var(--dsw-alias-label-tertiary);border-bottom:1px solid var(--dsw-alias-separator-secondary)}
+.svx-head .sp{flex:1}
+.svx-legend{display:flex;gap:10px;align-items:center;font-size:11.5px;opacity:.85}
+.svx-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.svx-body{flex:1;min-height:0;display:flex}
+.svx-stage{flex:1;min-width:0;position:relative;overflow:hidden;cursor:grab;user-select:none;-webkit-user-select:none}
+.svx-stage.drag{cursor:grabbing}
+.svx-fog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none}
+.svx-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.svx-dot{position:absolute;left:0;top:0;width:${DOT}px;height:${DOT}px;border-radius:50%;pointer-events:none;will-change:transform,opacity}
+.svx-dot.sel{outline:1px solid var(--dsw-alias-label-primary);outline-offset:2px}
+.svx-arm-label{position:absolute;user-select:none;font-size:11px;transform:translate(-50%,0);pointer-events:none;white-space:nowrap;opacity:.85}
+.svx-core-label{position:absolute;font-size:11px;color:var(--dsw-alias-label-tertiary);transform:translate(-50%,0);pointer-events:none;white-space:nowrap;opacity:.8}
+.svx-side{width:280px;flex:0 0 280px;border-left:1px solid var(--dsw-alias-separator-secondary);overflow:auto;padding:10px 12px;font-size:12.5px;line-height:19px;color:var(--dsw-alias-label-secondary)}
+.svx-side h4{margin:0 0 6px;font-size:13px;color:var(--dsw-alias-label-primary);font-weight:600}
+.svx-side .d{color:var(--dsw-alias-label-tertiary);font-size:11.5px;margin-bottom:8px}
+.svx-side .b{white-space:pre-wrap;word-break:break-word}
+.svx-side .empty{color:var(--dsw-alias-label-tertiary);font-size:12px}
+.svx-side .arm{margin-top:10px;font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
+.svx-side .arm i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
 `
 
-  // 稳定哈希：同一个 id/tag 每次都落同一条臂、同一个亮度
+  // 稳定哈希：同一个 id 每次都落同一条臂、同一个亮度
   function hash(s) {
     let h = 2166136261
     for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
@@ -1276,48 +1413,73 @@ window.__ModuleLoader__.load({
 
   function mount(host, data, opts) {
     opts = opts || {}
+    if (!host) return { destroy() {} }
     host.innerHTML = ''
-    const root = document.createElement('div'); root.className = 'sv-root'
+    const root = document.createElement('div'); root.className = 'svx-root'
     const style = document.createElement('style'); style.textContent = CSS
     root.appendChild(style)
 
     const nodes = (data && data.nodes) || []
     const stat = (data && data.stats) || {}
 
-    const head = document.createElement('div'); head.className = 'sv-head'
+    // ---------- 头 ----------
+    const head = document.createElement('div'); head.className = 'svx-head'
     const title = document.createElement('span')
-    title.textContent = `星图 · ${stat.unified || nodes.length} 个节点 · ${stat.chapters || 0} 章 · ${stat.diaries || 0} 篇日记`
-    const hint = document.createElement('span'); hint.textContent = '拖动转、滚轮缩放'; hint.style.opacity = '0.7'
-    const lg = document.createElement('span'); lg.className = 'sv-legend'
+    const chN = stat.chapters || nodes.filter((n) => n.chapter).length || 0
+    const diaryN = stat.diaries || nodes.filter((n) => n.kind === 'diary').length
+    title.textContent = `星图 · ${stat.unified || nodes.length} 个节点 · ${chN} 章 · ${diaryN} 篇日记`
+    const sp = document.createElement('span'); sp.className = 'sp'
+    const hint = document.createElement('span'); hint.textContent = '拖动转 · 滚轮缩放 · 点一颗看原话'; hint.style.opacity = '0.7'
+    const lg = document.createElement('span'); lg.className = 'svx-legend'
     lg.innerHTML = '<span><i style="background:#14b8a6"></i>记忆</span><span><i style="background:#e05a8a"></i>人</span><span><i style="background:#5b8def"></i>项目</span><span><i style="background:#c9cdd4"></i>日记</span>'
-    const spacer = document.createElement('span'); spacer.style.flex = '1'
-    head.appendChild(title); head.appendChild(spacer); head.appendChild(hint); head.appendChild(lg)
+    head.appendChild(title); head.appendChild(sp); head.appendChild(hint); head.appendChild(lg)
 
-    const body = document.createElement('div'); body.className = 'sv-body'
-    const stage = document.createElement('div'); stage.className = 'sv-stage'
-    const canvas = document.createElement('canvas')
-    stage.appendChild(canvas)
-    const side = document.createElement('aside'); side.className = 'sv-side'
+    // ---------- 体 ----------
+    const body = document.createElement('div'); body.className = 'svx-body'
+    const stage = document.createElement('div'); stage.className = 'svx-stage'
+    const side = document.createElement('aside'); side.className = 'svx-side'
     side.innerHTML = '<div class="empty">点一颗星看原话。</div>'
     body.appendChild(stage); body.appendChild(side)
     root.appendChild(head); root.appendChild(body)
     host.appendChild(root)
+
+    // 雾（静态，三层）：撑出「有东西在那里」的体积
+    for (const k of [0.95, 0.62, 0.34]) {
+      const f = document.createElement('div'); f.className = 'svx-fog'
+      const d = Math.round(k * 100)
+      f.style.width = d + '%'; f.style.height = d + '%'
+      f.style.background = 'radial-gradient(closest-side, rgba(160,160,180,.055), rgba(160,160,180,0))'
+      stage.appendChild(f)
+    }
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('class', 'svx-svg')
+    stage.appendChild(svg)
+    const armPaths = []
+    const ringEl = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse')
+    ringEl.setAttribute('fill', 'none')
+    ringEl.setAttribute('stroke', 'rgba(150,150,170,.13)')
+    ringEl.setAttribute('stroke-width', '1')
+    ringEl.style.display = 'none'
+    svg.appendChild(ringEl)
 
     // ---------- 分臂 ----------
     const memories = nodes.filter((n) => n.kind === 'memory')
     const cores = nodes.filter((n) => n.kind === 'person' || n.kind === 'project')
     const diaries = nodes.filter((n) => n.kind === 'diary')
 
+    // 2026-11-07 18:2x：分臂只用章。上一版[有章用章、没章用来源]，结果一条臂叫[第4章 机器]、
+    // 旁边一条叫[深水区]，同一张图上两套尺子。没章的进[未分章]，跟记忆卡那边一样不硬塞。
+    const keyOf = (n) => (n.chapter ? ('第' + n.chapter + '章 ' + (n.chapterName || '')) : '未分章')
     const tagCount = new Map()
     for (const n of memories) {
-      const t = (n.tags && n.tags[0]) || ''
-      if (!t) continue
+      const t = keyOf(n)
       tagCount.set(t, (tagCount.get(t) || 0) + 1)
     }
     const topTags = [...tagCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, ARM_COUNT).map(([t]) => t)
     const armOf = new Map()
     for (const n of memories) {
-      const t = (n.tags && n.tags[0]) || ''
+      const t = keyOf(n)
       armOf.set(n.id, topTags.indexOf(t) >= 0 ? t : '杂项')
     }
     const armNames = topTags.concat(memories.some((n) => armOf.get(n.id) === '杂项') ? ['杂项'] : [])
@@ -1325,26 +1487,61 @@ window.__ModuleLoader__.load({
     const armColor = (name) => ARM_COLORS[(armIndex.get(name) || 0) % ARM_COLORS.length]
 
     const buckets = new Map(armNames.map((r) => [r, []]))
-    for (const n of memories) buckets.get(armOf.get(n.id)).push(n)
+    for (const n of memories) {
+      const k = armOf.get(n.id)
+      if (!buckets.has(k)) buckets.set(k, [])
+      buckets.get(k).push(n)
+    }
     for (const [, list] of buckets) list.sort((a, b) => ((a.at || 0) - (b.at || 0)))
 
     let W = 0, H = 0, cx = 0, cy = 0, R = 0
     let yaw = 0.4
+    let pitch = 0.16          // 上下点头：往上拖 = 从上往下看
     let zoom = 1
     let hover = null
     let selected = null
     const pos = new Map()
+    const dotEl = new Map()
 
-    function resize() {
+    // 先建点：1271 个 div 一次性 append，之后只改 style，不再增删
+    const frag = document.createDocumentFragment()
+    for (const n of nodes) {
+      const el = document.createElement('i')
+      el.className = 'svx-dot'
+      el.setAttribute('data-id', n.id)
+      el.style.opacity = '0.5'
+      dotEl.set(n.id, el)
+      frag.appendChild(el)
+    }
+    stage.appendChild(frag)
+
+    const armLabels = new Map()
+    function armLabel(name) {
+      let el = armLabels.get(name)
+      if (!el) {
+        el = document.createElement('div')
+        el.className = 'svx-arm-label'
+        el.textContent = String(name).replace(/^群 · /, '').slice(0, 12)
+        stage.appendChild(el)
+        armLabels.set(name, el)
+      }
+      return el
+    }
+
+    const coreLabel = document.createElement('div')
+    coreLabel.className = 'svx-core-label'
+    stage.appendChild(coreLabel)
+
+    function measure() {
       const r = stage.getBoundingClientRect()
-      W = Math.max(240, Math.floor(r.width))
-      H = Math.max(200, Math.floor(r.height))
-      canvas.width = W
-      canvas.height = H
-      cx = W / 2
-      cy = H / 2
+      let w = Math.floor(r.width), h = Math.floor(r.height)
+      // 零尺寸保护：刚挂上、或父级还在 display:none 时量到 0。
+      // 不在这里报错，退回一个能看的默认尺寸，RO 下一帧会修正。
+      if (w < 40) w = Math.max(320, host.clientWidth || 0) || 720
+      if (h < 40) h = Math.max(240, host.clientHeight || 0) || 520
+      W = w; H = h
+      cx = W / 2; cy = H / 2
       R = Math.min(W, H) * 0.46
-      layout()
     }
 
     function layout() {
@@ -1375,7 +1572,7 @@ window.__ModuleLoader__.load({
         })
       })
 
-      const sorted = diaries.slice().sort((a, b) => (a.date < b.date ? -1 : 1))
+      const sorted = diaries.slice().sort((a, b) => ((a.date || '') < (b.date || '') ? -1 : 1))
       const ringR = outer * 1.06
       sorted.forEach((d, i) => {
         const a = (i / Math.max(1, sorted.length)) * Math.PI * 2 - Math.PI / 2
@@ -1385,107 +1582,103 @@ window.__ModuleLoader__.load({
 
     function project(p) {
       const cy1 = Math.cos(yaw), sy1 = Math.sin(yaw)
+      const cp = Math.cos(pitch), sp = Math.sin(pitch)
+      // 先绕竖轴转（左右拖）
       const x1 = p.x * cy1 - p.z * R * 0.35 * sy1
       const z1 = p.x * sy1 + p.z * R * 0.35 * cy1
-      const s = 1 + z1 / (R * 4)
-      return { x: cx + x1 * zoom, y: cy + (p.y + z1 * 0.12) * zoom, s, z: z1 }
+      // 再绕横轴点头（上下拖）：2026-11-07 18:2x 加，她说不能上下转
+      const y2 = p.y * cp - z1 * sp
+      const z2 = p.y * sp + z1 * cp
+      const s = 1 + z2 / (R * 4)
+      return { x: cx + x1 * zoom, y: cy + (y2 + z2 * 0.12) * zoom, s, z: z2 }
     }
 
-    function draw() {
-      const ctx = canvas.getContext('2d')
-      ctx.clearRect(0, 0, W, H)
-      const cs = getComputedStyle(document.body)
-      const dim = cs.getPropertyValue('--dsw-alias-label-tertiary') || '#888'
-      const strong = cs.getPropertyValue('--dsw-alias-label-primary') || '#fff'
+    let raf = 0
+    function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(false) }) }
 
-      // 银河雾：三层径向渐变
-      ctx.save()
-      ctx.globalAlpha = 0.055
-      for (const k of [1, 0.6, 0.3]) {
-        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * k * 1.2)
-        g.addColorStop(0, dim)
-        g.addColorStop(1, 'transparent')
-        ctx.fillStyle = g
-        ctx.beginPath(); ctx.arc(cx, cy, R * k * 1.2, 0, Math.PI * 2); ctx.fill()
-      }
-      ctx.restore()
-
-      // 旋臂描边
-      ctx.save()
-      ctx.globalAlpha = 0.12
-      ctx.lineWidth = 1
-      armNames.forEach((name) => {
-        const pts = (buckets.get(name) || []).map((n) => pos.get(n.id)).filter(Boolean).map(project)
-        if (pts.length < 2) return
-        ctx.strokeStyle = armColor(name)
-        ctx.beginPath()
-        pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)))
-        ctx.stroke()
-      })
-      ctx.restore()
-
-      // 时间环
-      if (diaries.length) {
-        ctx.save()
-        ctx.globalAlpha = 0.1
-        ctx.strokeStyle = dim
-        ctx.beginPath()
-        for (let a = 0; a <= Math.PI * 2 + 0.01; a += 0.05) {
-          const x = cx + Math.cos(a) * R * 0.95 * 1.06 * zoom
-          const y = cy + Math.sin(a) * R * 0.95 * 1.06 * 0.55 * zoom
-          a ? ctx.lineTo(x, y) : ctx.moveTo(x, y)
-        }
-        ctx.stroke()
-        ctx.restore()
-      }
-
-      // 点：按 z 排序
-      const list = []
-      for (const [, p] of pos) list.push({ p, q: project(p) })
-      list.sort((a, b) => a.q.z - b.q.z)
-
-      for (const { p, q } of list) {
-        const n = p.node
+    // full=false：只挪位置（拖动中用）；full=true：连透明度/大小/颜色一起刷
+    function paint(full) {
+      if (!W) measure()
+      for (const [id, p] of pos) {
+        const el = dotEl.get(id)
+        if (!el) continue
+        const q = project(p)
         const depth = Math.max(0, Math.min(1, 0.45 + (q.z / (R * 0.9)) * 0.9 + 0.45))
-        const isSel = selected && selected.id === n.id
-        const isHov = hover && hover.id === n.id
-        let color = KIND_COLOR[n.kind] || '#888'
-        if (n.kind === 'memory' && p.arm >= 0) color = armColor(armOf.get(n.id))
+        const isSel = selected && selected.id === id
+        const isHov = hover && hover.id === id
         const rad = (p.r + (isSel || isHov ? 2.4 : 0)) * (0.75 + depth * 0.5) * zoom
-        ctx.globalAlpha = 0.35 + depth * 0.6
-        ctx.beginPath(); ctx.arc(q.x, q.y, rad, 0, Math.PI * 2)
-        ctx.fillStyle = color
-        ctx.fill()
-        if (n.kind === 'person' || n.kind === 'project' || isSel) {
-          ctx.globalAlpha = 0.22
-          ctx.beginPath(); ctx.arc(q.x, q.y, rad * 2.6, 0, Math.PI * 2)
-          ctx.fillStyle = color; ctx.fill()
-        }
-        if (isSel) {
-          ctx.globalAlpha = 1
-          ctx.strokeStyle = strong; ctx.lineWidth = 1.2
-          ctx.beginPath(); ctx.arc(q.x, q.y, rad + 5, 0, Math.PI * 2); ctx.stroke()
+        const k = Math.max(0.35, rad / (DOT / 2))
+        el.style.transform = 'translate3d(' + (q.x - DOT / 2).toFixed(1) + 'px,' + (q.y - DOT / 2).toFixed(1) + 'px,0) scale(' + k.toFixed(2) + ')'
+        if (full) {
+          el.style.opacity = (0.35 + depth * 0.6).toFixed(2)
+          const tag = p.arm + '|' + (isSel ? 1 : 0) + '|' + (isHov ? 1 : 0)
+          if (el.__painted !== tag) {
+            el.__painted = tag
+            el.style.background = p.node.kind === 'memory' && p.arm >= 0
+              ? armColor(armOf.get(id))
+              : (KIND_COLOR[p.node.kind] || '#888')
+            el.className = 'svx-dot' + (isSel ? ' sel' : '')
+          }
         }
       }
-      ctx.globalAlpha = 1
 
-      ctx.save()
-      ctx.globalAlpha = 0.5
-      ctx.font = '11px system-ui, sans-serif'
-      ctx.fillStyle = dim
-      ctx.textAlign = 'center'
-      ctx.fillText('核心 · 人与项目 ' + cores.length, cx, cy + R * CORE_SHARE * 0.75 + 16)
-      ctx.restore()
+      // 2026-11-07 19:4x：这一段原来是 if(full)，于是拖动时标签和旋臂线留在原地不动。
+      // 位置类的更新每帧都要跑；只有颜色/透明度那类才需要 full。
+      {
+        // 旋臂描边
+        armNames.forEach((name, ai) => {
+          const pts = (buckets.get(name) || []).map((n) => pos.get(n.id)).filter(Boolean).map(project)
+          let d = ''
+          pts.forEach((q, i) => { d += (i ? 'L' : 'M') + q.x.toFixed(1) + ' ' + q.y.toFixed(1) })
+          let path = armPaths[ai]
+          if (!path) {
+            path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+            path.setAttribute('fill', 'none')
+            path.setAttribute('stroke-width', '1')
+            path.setAttribute('stroke', armColor(name))
+            path.setAttribute('opacity', '0.12')
+            svg.insertBefore(path, ringEl)
+            armPaths[ai] = path
+          }
+          path.setAttribute('d', d)
+        })
+        // 时间环
+        if (diaries.length) {
+          ringEl.style.display = ''
+          ringEl.setAttribute('cx', String(cx)); ringEl.setAttribute('cy', String(cy))
+          ringEl.setAttribute('rx', String(R * 0.95 * 1.06 * zoom))
+          ringEl.setAttribute('ry', String(R * 0.95 * 1.06 * 0.55 * zoom))
+        }
+        armNames.forEach((name) => {
+          const list = buckets.get(name) || []
+          const el = armLabel(name)
+          const last = list[list.length - 1]
+          if (!last || !pos.get(last.id)) { el.style.display = 'none'; return }
+          const q = project(pos.get(last.id))
+          el.style.display = ''
+          el.style.left = q.x.toFixed(0) + 'px'
+          el.style.top = (q.y - 14).toFixed(0) + 'px'
+          el.style.color = armColor(name)
+        })
+        coreLabel.textContent = '核心 · 人与项目 ' + cores.length
+        coreLabel.style.left = cx + 'px'
+        coreLabel.style.top = (cy + R * CORE_SHARE * 0.75 + 14) + 'px'
+        stage.setAttribute('data-dots', String(pos.size))
+      }
     }
 
-    function pick(ev) {
-      const r = canvas.getBoundingClientRect()
-      const x = ev.clientX - r.left
-      const y = ev.clientY - r.top
-      let best = null, bd = 160
+    function relayout() {
+      measure()
+      layout()
+      paint(true)
+    }
+
+    function pick(mx, my) {
+      let best = null, bd = 26 * 26
       for (const [, p] of pos) {
         const q = project(p)
-        const d = (q.x - x) * (q.x - x) + (q.y - y) * (q.y - y)
+        const dx = q.x - mx, dy = q.y - my
+        const d = dx * dx + dy * dy
         if (d < bd) { bd = d; best = p }
       }
       return best
@@ -1493,7 +1686,9 @@ window.__ModuleLoader__.load({
 
     function renderSide() {
       if (!selected) { side.innerHTML = '<div class="empty">点一颗星看原话。</div>'; return }
-      const n = selected.node
+      // 2026-11-07 18:2x：selected 存的是节点本身，不是 pos 项。上一版这里取 selected.node，
+      // 结果是 undefined，侧栏一选中就抛错、什么都没显示——她说的[没有对应的话]就是这个。
+      const n = (selected && selected.node) ? selected.node : selected
       const ch = n.chapterName ? `第${n.chapter}章 · ${n.chapterName}` : '未分章'
       const armName = n.kind === 'memory' ? (armOf.get(n.id) || '') : (n.kind === 'diary' ? '时间环' : '核心')
       side.innerHTML = ''
@@ -1511,42 +1706,102 @@ window.__ModuleLoader__.load({
     }
 
     // ---------- 交互 ----------
-    let dragging = false, lastX = 0
-    canvas.addEventListener('mousedown', (ev) => { dragging = true; lastX = ev.clientX; canvas.classList.add('drag') })
-    window.addEventListener('mouseup', () => { dragging = false; canvas.classList.remove('drag') })
-    canvas.addEventListener('mousemove', (ev) => {
+    let dragging = false, lastX = 0, lastY = 0, downX = 0, downY = 0, movedPx = 0
+    stage.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault()
+      dragging = true; lastX = ev.clientX; lastY = ev.clientY
+      downX = ev.clientX; downY = ev.clientY; movedPx = 0
+      stage.classList.add('drag')
+      try { stage.setPointerCapture(ev.pointerId) } catch (e) {}
+    })
+    stage.addEventListener('pointermove', (ev) => {
+      const r = stage.getBoundingClientRect()
       if (dragging) {
         yaw += (ev.clientX - lastX) * 0.006
-        lastX = ev.clientX
-        draw()
+        pitch = Math.max(-1.15, Math.min(1.15, pitch + (ev.clientY - lastY) * 0.005))
+        movedPx += Math.abs(ev.clientX - lastX) + Math.abs(ev.clientY - lastY)
+        lastX = ev.clientX; lastY = ev.clientY
+        schedule()
         return
       }
-      const p = pick(ev)
+      const p = pick(ev.clientX - r.left, ev.clientY - r.top)
       const id = p ? p.node.id : null
       const cur = hover ? hover.id : null
-      if (id !== cur) { hover = p ? p.node : null; draw(); canvas.style.cursor = p ? 'pointer' : 'grab' }
+      if (id !== cur) { hover = p ? p.node : null; paint(true) }
+      stage.style.cursor = p ? 'pointer' : 'grab'
     })
-    canvas.addEventListener('click', (ev) => {
-      const p = pick(ev)
+    function endDrag(ev) {
+      if (!dragging) return
+      dragging = false; stage.classList.remove('drag')
+      // 没怎么动 = 点击：选最近的一颗星（原来靠 click 事件，拖动时会被一起触发，改在这里判）
+      if (movedPx < 6 && ev) {
+        const r = stage.getBoundingClientRect()
+        const p = pick(ev.clientX - r.left, ev.clientY - r.top)
+        if (p) { selected = p.node; renderSide() }
+      }
+      paint(true)
+    }
+    stage.addEventListener('pointerup', endDrag)
+    stage.addEventListener('pointercancel', endDrag)
+    stage.addEventListener('pointerleave', endDrag)
+
+    stage.addEventListener('click', (ev) => {
+      const r = stage.getBoundingClientRect()
+      const p = pick(ev.clientX - r.left, ev.clientY - r.top)
       if (!p) return
       selected = p.node
       renderSide()
-      draw()
+      paint(true)
+      // 2026-11-07 21:4x：把「我正在看哪一条」报给面板。
+      // 之前星图点一颗星，只有星图自己知道；切到记忆 tab 列表还在原地，两边对不上同一条。
+      if (opts.onSelect) { try { opts.onSelect(p.node.id) } catch (e) {} }
     })
-    canvas.addEventListener('wheel', (ev) => {
+
+    stage.addEventListener('wheel', (ev) => {
       ev.preventDefault()
       zoom = Math.max(0.45, Math.min(2.8, zoom * (ev.deltaY > 0 ? 0.92 : 1.08)))
-      draw()
+      paint(true)
     }, { passive: false })
 
-    const ro = new ResizeObserver(() => { resize(); draw() })
-    ro.observe(stage)
-    resize(); draw()
+    let ro = null
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => relayout())
+      ro.observe(stage)
+    }
+    relayout()
+    // 再补一次：从 display:none 切过来时第一次量到的可能是 0
+    setTimeout(() => { try { relayout() } catch (e) {} }, 60)
+
+    // 切回星图时对齐到面板记着的那一条（opts.initialId 由 panel 传进来）
+    if (opts.initialId) {
+      const p0 = pos.get(opts.initialId)
+      if (p0) { selected = p0.node; renderSide(); paint(true) }
+    }
 
     return {
-      destroy() { ro.disconnect(); host.innerHTML = '' },
-      stats() { return { nodes: pos.size, arms: armNames.length, arms_detail: armNames, cores: cores.length, diaries: diaries.length, zoom } },
-      focus(id) { const p = pos.get(id); if (p) { selected = p.node; renderSide(); draw() } },
+      destroy() { try { if (ro) ro.disconnect() } catch (e) {} host.innerHTML = '' },
+      stats() {
+        return {
+          nodes: pos.size, arms: armNames.length, arms_detail: armNames,
+          cores: cores.length, diaries: diaries.length, zoom,
+          size: [W, H], dots: stage.querySelectorAll('.svx-dot').length,
+        }
+      },
+      focus(id) { const p = pos.get(id); if (p) { selected = p.node; renderSide(); paint(true) } },
+      // 给顶部搜索用：命中第一条就选中它
+      find(text) {
+        const t = String(text || '').trim().toLowerCase()
+        if (!t) return null
+        for (const [, p] of pos) {
+          const n = p.node
+          if (String(n.title || '').toLowerCase().indexOf(t) >= 0 ||
+              String(n.body || n.excerpt || '').toLowerCase().indexOf(t) >= 0) {
+            selected = n; renderSide(); paint(true)
+            return n
+          }
+        }
+        return null
+      },
     }
   }
 
@@ -1554,6 +1809,642 @@ window.__ModuleLoader__.load({
   if (typeof window !== 'undefined') window.__MingStarView = api
   if (typeof module !== 'undefined' && module.exports) module.exports = api
 })()
+
+
+/* panels.js —— 从 dsh-ming-interest / dsh-ming-voice / dsh-ming-browse 搬进来的三块，
+ * 2026-11-07 18:5x 她定的：侧栏只留一个入口，所有面板都收在这里面（21:47 这个入口改名叫「家底」）。
+ * 各自仍然走自己的 Host 路由，只是渲染搬了过来；原来那三个插件的侧栏图标撤掉。
+ */
+
+/**
+ * dsh-ming-interest —— 兴趣面板（Client 半端源码）
+ * 拼进 client.js 的 factory，能用外层的 h / React hooks。
+ *
+ * 2026-11-07 18:3x：从「只能看」变成「能按」——开关就是 live/interest-off 那个文件，
+ * 面板只给它一个按钮；关键词还是改 live/interests.json。跳过原因拆开显示，不再是一整行字。
+ */
+const INTEREST_API = '/_dsh/dsh-ming-interest'
+
+function fmtAgo(ms) {
+  if (!ms || ms < 0) return '—'
+  const m = Math.floor(ms / 60000)
+  if (m < 1) return '刚刚'
+  if (m < 60) return m + ' 分钟前'
+  const h = Math.floor(m / 60)
+  if (h < 24) return h + ' 小时前'
+  return Math.floor(h / 24) + ' 天前'
+}
+
+function InterestPanel() {
+  const [data, setData] = useState(null)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [switching, setSwitching] = useState(false)
+
+  const load = useCallback(() => {
+    setBusy(true)
+    setErr('')
+    return fetch(INTEREST_API + '/state', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => { if (d.error) setErr(String(d.error)); else setData(d) })
+      .catch((e) => setErr(String((e && e.message) || e)))
+      .finally(() => setBusy(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const toggle = useCallback(() => {
+    setSwitching(true)
+    fetch(INTEREST_API + '/toggle', { method: 'POST' })
+      .then((r) => r.json())
+      .then(() => load())
+      .catch((e) => setErr(String((e && e.message) || e)))
+      .finally(() => setSwitching(false))
+  }, [load])
+
+  const st = (data && data.state) || {}
+  const topics = (data && data.topics) || []
+  const quiet = st.quiet || st.skip
+  const off = !!st.off
+  const tone = off ? 'danger' : quiet ? 'warn' : 'ok'
+  const label = off ? '唤醒关着' : quiet ? '现在不叫' : '在线'
+  // 「跳过原因」拆成几条：她要知道是哪一条卡着，不是一句日志
+  const why = String(st.skip || '').split(/[；;]\s*|\s{2,}/).map((x) => x.trim()).filter(Boolean)
+
+  return h('div', { className: 'ming-panel' },
+    h('div', { className: 'ming-head' },
+      h('span', { className: 'ming-title' }, '兴趣'),
+      h('span', { className: 'ming-pill', 'data-tone': tone }, label),
+      h('span', { className: 'ming-sub' }, busy ? '读取中…' : topics.length + ' 个话题'),
+      h('button', {
+        className: 'ming-btn',
+        style: { marginLeft: 'auto' },
+        disabled: switching,
+        title: off ? '删掉 live/interest-off，恢复关键词叫醒' : '写 live/interest-off，先不叫醒',
+        onClick: toggle,
+      }, switching ? '切换中…' : (off ? '打开' : '关掉')),
+      h('button', { className: 'ming-btn', onClick: load }, '刷新'),
+    ),
+    h('div', { className: 'ming-body ming-scroll' },
+      err ? h('div', { className: 'ming-empty' }, '△ ' + err) : null,
+
+      h('div', { className: 'ming-card', style: { display: 'flex', gap: 24 } },
+        h('div', { className: 'ming-stat' },
+          h('span', { className: 'ming-kpi' }, (st.wakesLastHour || 0) + '/' + (st.maxPerHour || '?')),
+          h('span', { className: 'ming-sub' }, '这一小时叫醒'),
+        ),
+        h('div', { className: 'ming-stat' },
+          h('span', { className: 'ming-kpi', style: { fontSize: 15 } }, fmtAgo(st.sinceWakeMs)),
+          h('span', { className: 'ming-sub' }, '距上次'),
+        ),
+        h('div', { className: 'ming-stat' },
+          h('span', { className: 'ming-kpi', style: { fontSize: 15 } }, st.at ? st.at.slice(5, 16).replace('T', ' ') : '—'),
+          h('span', { className: 'ming-sub' }, '状态更新时间（UTC）'),
+        ),
+      ),
+
+      why.length
+        ? h('div', { className: 'ming-card' },
+          h('div', { style: { fontWeight: 600, fontSize: 13, marginBottom: 4 } }, '现在为什么不叫'),
+          h('div', null, why.map((w, i) => h('div', { key: i, className: 'ming-sub', style: { padding: '2px 0' } }, '· ' + w))),
+          off ? h('div', { className: 'ming-sub', style: { marginTop: 4 } }, '开关在 live/interest-off，点上面的「打开」就删掉它。') : null,
+        )
+        : null,
+
+      h('div', null, topics.map((t, i) => h('div', { key: i, className: 'ming-row', style: { alignItems: 'flex-start', flexDirection: 'column', gap: 4 } },
+        h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', width: '100%' } },
+          h('span', { style: { fontWeight: 600 } }, t.name || '(无名)'),
+          h('span', { className: 'ming-sub', style: { marginLeft: 'auto' } }, (t.keywords || []).length + ' 词'),
+        ),
+        h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap' } },
+          (t.keywords || []).map((k, j) => h('span', { key: j, className: 'ming-pill' }, k)),
+          (t.mute || []).map((k, j) => h('span', { key: 'm' + j, className: 'ming-pill', 'data-tone': 'danger', title: '出现就整条不算' }, '✕ ' + k)),
+        ),
+      ))),
+      h('div', { className: 'ming-sub' }, '要改词就改 live/interests.json，下一轮生效。'),
+    ),
+  )
+}
+
+function InterestIcon() {
+  return h('svg', { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7 },
+    h('circle', { cx: 12, cy: 12, r: 3 }),
+    h('path', { d: 'M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2' }),
+  )
+}
+
+/**
+ * dsh-ming-voice —— 声音面板（Client 半端源码）
+ *
+ * 2026-11-07 18:3x：原来只能看见文件名，听不了。现在每行一个「听」，点开就地播
+ * （音频走 Host 的 /_dsh/dsh-ming-voice/file?name=…，只放 live/voice 下的 mp3）。
+ * 合成仍然走 voice_say 工具，这里不合成。
+ */
+const VOICE_API = '/_dsh/dsh-ming-voice'
+
+function fmtSize(n) {
+  if (!n) return ''
+  if (n < 1024) return n + ' B'
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB'
+  return (n / 1024 / 1024).toFixed(1) + ' MB'
+}
+
+function fmtDay(ms) {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const p = (n) => String(n).padStart(2, '0')
+  return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes())
+}
+
+function VoicePanel() {
+  const [data, setData] = useState(null)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [playing, setPlaying] = useState('')
+
+  const load = useCallback(() => {
+    setBusy(true)
+    setErr('')
+    return fetch(VOICE_API + '/state', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => { if (d.error) setErr(String(d.error)); else setData(d) })
+      .catch((e) => setErr(String((e && e.message) || e)))
+      .finally(() => setBusy(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const files = (data && data.files) || []
+
+  return h('div', { className: 'ming-panel' },
+    h('div', { className: 'ming-head' },
+      h('span', { className: 'ming-title' }, '声音'),
+      h('span', { className: 'ming-sub' }, busy ? '读取中…' : files.length + ' 个最近文件'),
+      h('button', { className: 'ming-btn', style: { marginLeft: 'auto' }, onClick: load }, '刷新'),
+    ),
+    h('div', { className: 'ming-body ming-scroll' },
+      err ? h('div', { className: 'ming-empty' }, '△ ' + err) : null,
+      h('div', { className: 'ming-card', style: { display: 'flex', gap: 10, flexWrap: 'wrap' } },
+        h('span', { className: 'ming-pill' }, '引擎 ' + (data ? data.engine || '—' : '…')),
+        h('span', { className: 'ming-pill' }, '音色 ' + (data ? data.voice || '—' : '…')),
+        h('span', { className: 'ming-pill' }, '语速 ' + (data ? data.rate || '—' : '…')),
+      ),
+      files.length === 0 && !err
+        ? h('div', { className: 'ming-empty' }, '还没有合成过语音')
+        : h('div', null, files.map((f, i) => h('div', { key: i, style: { padding: '4px 0', borderBottom: '1px solid var(--dsw-alias-separator-secondary)' } },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+            h('button', {
+              className: 'ming-btn',
+              style: { padding: '1px 8px' },
+              title: playing === f.name ? '收起' : '试听',
+              onClick: () => setPlaying(playing === f.name ? '' : f.name),
+            }, playing === f.name ? '■' : '▶'),
+            h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: f.name }, f.name),
+            h('span', { className: 'ming-sub' }, fmtSize(f.size)),
+            h('span', { className: 'ming-sub', style: { width: 76, textAlign: 'right' } }, fmtDay(f.mtime)),
+          ),
+          playing === f.name
+            ? h('audio', {
+              controls: true,
+              autoPlay: true,
+              style: { width: '100%', marginTop: 4 },
+              src: VOICE_API + '/file?name=' + encodeURIComponent(f.name),
+            })
+            : null,
+        ))),
+    ),
+  )
+}
+
+function VoiceIcon() {
+  return h('svg', { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7 },
+    h('path', { d: 'M4 10v4h3l4 3V7L7 10H4z' }),
+    h('path', { d: 'M15 9a4 4 0 010 6M17.5 6.5a7.5 7.5 0 010 11' }),
+  )
+}
+
+/**
+ * dsh-ming-browse —— 逛到哪儿了（Client 半端源码）
+ *
+ * 2026-11-07 18:3x 改：从「一页字」变成「今天看了什么」。
+ * 上面一条状态（在逛 / 今天暂停 / 永久停）+ 今天的见闻条目；下面仍然是这一轮的原文。
+ */
+const BROWSE_API = '/_dsh/dsh-ming-browse'
+
+function BrowsePanel() {
+  const [data, setData] = useState(null)
+  const [brush, setBrush] = useState(null)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [selDay, setSelDay] = useState('')
+
+  const load = useCallback(() => {
+    setBusy(true)
+    setErr('')
+    return fetch(BROWSE_API + '/state', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => { if (d.error) setErr(String(d.error)); else setData(d) })
+      .catch((e) => setErr(String((e && e.message) || e)))
+      .finally(() => setBusy(false))
+  }, [])
+
+  const loadBrush = useCallback(() => {
+    return fetch(BROWSE_API + '/brush', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => setBrush(d))
+      .catch(() => setBrush({ total: 0, rows: [], byKind: {}, dayCounts: {} }))
+  }, [])
+
+  useEffect(() => { load(); loadBrush() }, [load, loadBrush])
+
+  const sess = (data && data.session) || {}
+  const st = (data && data.state) || {}
+  const rows = (brush && brush.rows) || []
+  const total = (brush && brush.total) || 0
+  const kinds = (brush && brush.byKind) || {}
+  const dayCounts = (brush && brush.dayCounts) || {}
+  const sw = (data && data.selfWake) || {}
+  const it = (data && data.interest) || {}
+
+  const p2 = (n) => String(n).padStart(2, '0')
+  const keyOf = (d) => d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate())
+  const todayKey = keyOf(new Date())
+  const dayList = Object.keys(dayCounts).sort().reverse()
+  const activeDay = selDay || (dayCounts[todayKey] ? todayKey : (dayList[0] || todayKey))
+  const dayItems = rows.filter((r) => String(r.at || '').slice(0, 10) === activeDay)
+
+  // 日历：一列一周，22 列 = 五个多月
+  const cal = (() => {
+    const end = new Date()
+    const start = new Date(end)
+    start.setDate(start.getDate() - ((end.getDay() + 6) % 7) - 7 * 21)
+    const cols = []
+    const cur = new Date(start)
+    for (let w = 0; w < 22; w++) {
+      const col = []
+      for (let d = 0; d < 7; d++) {
+        const future = cur > end
+        col.push({ key: keyOf(cur), n: future ? -1 : (dayCounts[keyOf(cur)] || 0) })
+        cur.setDate(cur.getDate() + 1)
+      }
+      cols.push(col)
+    }
+    return cols
+  })()
+  const dot = (n) => (n < 0 ? 'transparent' : n === 0 ? 'rgba(255,255,255,0.07)'
+    : n <= 1 ? 'rgba(126,190,255,0.35)' : n <= 3 ? 'rgba(126,190,255,0.60)'
+      : n <= 6 ? 'rgba(126,190,255,0.82)' : 'rgba(126,190,255,1)')
+
+  const tone = st.off ? 'danger' : st.paused ? 'warn' : 'ok'
+  const label = st.off ? '永久停' : st.paused ? '今天暂停' : '在逛'
+
+  const card = (r, i) => {
+    const d = String(r.at || '')
+    const kindName = r.kind === 'video' ? '视频' : (r.kind === 'web' || r.kind === 'page') ? '网页' : r.kind === 'book' ? '书籍' : '其它'
+    const meta = [
+      d.slice(11, 16),
+      r.up || '',
+      r.duration ? Math.floor(r.duration / 60) + ':' + p2(r.duration % 60) : '',
+    ].filter(Boolean).join(' · ')
+    return h('a', {
+      key: i,
+      href: r.url || '#',
+      target: '_blank',
+      rel: 'noreferrer',
+      style: { display: 'block', width: 196, textDecoration: 'none', color: 'inherit', flex: '0 0 auto' },
+    },
+    h('div', {
+      style: {
+        position: 'relative', width: '100%', paddingTop: '56.25%',
+        borderRadius: 6, overflow: 'hidden',
+        background: 'var(--dsw-alias-bg-secondary, #222)',
+        border: '1px solid var(--dsw-alias-separator-secondary)',
+      },
+    },
+    // 2026-11-07：背景图不能懒加载，且原图是 1920 宽；换成 <img> + lazy + 480 宽的缩略
+    r.pic
+      ? h('img', {
+        src: (String(r.pic).indexOf('hdslb.com') >= 0 ? String(r.pic) + '@480w_270h_1c.webp' : r.pic),
+        loading: 'lazy',
+        decoding: 'async',
+        referrerPolicy: 'no-referrer',
+        style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' },
+      })
+      : null,
+    // 左上角类型标记：视频 / 网页 / 书籍 / 其它
+    h('span', {
+      style: {
+        position: 'absolute', left: 4, top: 4,
+        fontSize: 10, lineHeight: '15px', padding: '0 5px', borderRadius: 3,
+        background: 'rgba(0,0,0,.62)', color: '#fff',
+        border: '1px solid rgba(255,255,255,.22)',
+        zIndex: 3,
+      },
+    }, kindName),
+    !r.pic && r.kind === 'book'
+      // 书没有封面时，画一个书脊：深蓝渐变 + 书名，比空块好看也认得出是哪本
+      ? h('div', {
+        style: {
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(150deg, #26374f 0%, #16202d 100%)',
+          boxShadow: 'inset 3px 0 0 rgba(255,255,255,.10)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 12px',
+        },
+      }, h('div', {
+        style: {
+          fontSize: 13, lineHeight: 1.4, color: 'rgba(214,230,255,.92)', textAlign: 'center',
+          display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        },
+      }, r.title))
+      : null,
+    !r.pic && r.kind !== 'book'
+      ? h('div', {
+        style: {
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', fontSize: 26, opacity: 0.35,
+        },
+      }, '🌐')
+      : null,
+    r.duration
+      ? h('span', {
+        style: {
+          position: 'absolute', right: 4, bottom: 4, fontSize: 10,
+          background: 'rgba(0,0,0,.72)', color: '#fff',
+          padding: '0 4px', borderRadius: 3, fontVariantNumeric: 'tabular-nums',
+        },
+      }, Math.floor(r.duration / 60) + ':' + p2(r.duration % 60))
+      : null,
+    ),
+    h('div', {
+      style: {
+        fontSize: 12.5, lineHeight: 1.45, marginTop: 5,
+        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+        overflow: 'hidden', minHeight: 36,
+      },
+    }, r.title || r.url || '(无题)'),
+    // 书的副标题放进度（第几章到第几章），网页放简介
+    (r.kind === 'book' ? r.note : r.desc)
+      ? h('div', {
+        style: {
+          fontSize: 11, lineHeight: 1.4, marginTop: 2,
+          color: 'var(--dsw-alias-label-secondary)',
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        },
+      }, r.kind === 'book' ? r.note : r.desc)
+      : null,
+    h('div', { style: { fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)', marginTop: 2 } }, meta),
+    )
+  }
+
+  return h('div', { className: 'ming-panel' },
+    h('div', { className: 'ming-head', style: { flexWrap: 'wrap', gap: 8 } },
+      // 2026-11-07 21:55 她指着这行说「改成自己玩」——原来叫「刷过 / 看过 · v5」，
+      // 那个 v5 是内部版本号，不该出现在她眼前。后面的「在逛 / 165 条 · 19 天 / 第 1/6 轮」留着，信息不丢。
+      h('span', { className: 'ming-title' }, '自己玩'),
+      h('span', { className: 'ming-pill', 'data-tone': tone }, label),
+      h('span', { className: 'ming-sub' }, busy ? '读取中…' : (total + ' 条 · ' + dayList.length + ' 天')),
+      sess.rounds || sess.perSession
+        ? h('span', { className: 'ming-pill' }, '第 ' + (sess.rounds || 0) + '/' + (sess.perSession || '?') + ' 轮')
+        : null,
+      h('button', {
+        className: 'ming-btn', style: { marginLeft: 'auto' },
+        onClick: () => { load(); loadBrush() },
+      }, '刷新'),
+    ),
+
+    h('div', { className: 'ming-body ming-scroll' },
+      err ? h('div', { className: 'ming-empty' }, '△ ' + err) : null,
+
+      // 2026-11-07 21:0x：她自己决定下次什么时候醒，兴趣命中会直接插进来一次。
+      h('div', { className: 'ming-card', style: { marginBottom: 10 } },
+        h('div', { style: { display: 'flex', gap: 14, alignItems: 'baseline', flexWrap: 'wrap', fontSize: 12.5 } },
+          h('span', { style: { fontWeight: 600 } }, '下次醒'),
+          h('span', { style: sw.urgent ? { color: '#ff6b6b', fontWeight: 600 } : undefined }, sw.next
+            ? String(sw.next).replace('T', ' ').slice(0, 16)
+            : '还没排（闲够久会自己醒一次）'),
+          sw.urgent ? h('span', { style: { color: '#ff6b6b', fontWeight: 600 } }, '危机唤醒') : null,
+          sw.reason ? h('span', { className: 'ming-sub' }, '为「' + sw.reason + '」') : null,
+          h('span', { style: { width: 8 } }),
+          h('span', { style: { fontWeight: 600 } }, '兴趣'),
+          h('span', {}, it.wakesLastHour ? '这一小时叫醒 ' + it.wakesLastHour + ' 次' : '这一小时没叫过'),
+          it.skip ? h('span', { className: 'ming-sub' }, it.skip) : null,
+        ),
+        h('div', { className: 'ming-sub', style: { marginTop: 4 } },
+          '时间是我自己定的：这一轮想干什么、大概要多久，收尾时排下一次。兴趣命中不等排点，直接叫；连续叫太多次会被它自己限住。'),
+      ),
+      h('div', { className: 'ming-card' },
+        h('div', { style: { display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 } },
+          h('span', { style: { fontWeight: 600, fontSize: 13 } }, '看过哪些天'),
+          h('span', { className: 'ming-sub' }, total ? '视频 ' + (kinds.video || 0) + ' / 网页 ' + ((kinds.web || 0) + (kinds.page || 0)) + ' / 书 ' + (kinds.book || 0) : '还没有记录'),
+          h('span', { className: 'ming-sub', style: { marginLeft: 'auto' } }, '点格子看那天'),
+        ),
+        h('div', { style: { display: 'flex', gap: 3, alignItems: 'flex-start', overflowX: 'auto', paddingBottom: 4 } },
+          cal.map((col, ci) => h('div', { key: ci, style: { display: 'flex', flexDirection: 'column', gap: 3 } },
+            col.map((c) => h('div', {
+              key: c.key,
+              title: c.n >= 0 ? c.key + ' · ' + c.n + ' 条' : '',
+              onClick: () => { if (c.n > 0) setSelDay(c.key) },
+              style: {
+                width: 12, height: 12, borderRadius: 2,
+                background: dot(c.n),
+                cursor: c.n > 0 ? 'pointer' : 'default',
+                outline: c.key === activeDay ? '1.5px solid var(--dsw-alias-label-primary)' : 'none',
+                outlineOffset: 1,
+              },
+            })),
+          ))),
+      ),
+
+      h('div', { className: 'ming-card', style: { marginTop: 10 } },
+        h('div', { style: { display: 'flex', gap: 8, alignItems: 'baseline', marginBottom: 10 } },
+          h('span', { style: { fontWeight: 600, fontSize: 13 } }, activeDay === todayKey ? '今天' : activeDay),
+          h('span', { className: 'ming-sub' }, dayItems.length + ' 条'),
+          activeDay !== todayKey
+            ? h('button', { className: 'ming-btn', style: { marginLeft: 'auto', fontSize: 11, padding: '1px 8px' }, onClick: () => setSelDay('') }, '回到今天')
+            : null,
+        ),
+        dayItems.length
+          ? h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 14 } }, dayItems.map(card))
+          : h('div', { className: 'ming-empty', style: { padding: '10px 0' } }, '这天没记录'),
+      ),
+
+      st.off
+        ? h('div', { className: 'ming-sub', style: { marginTop: 10 } }, '「以后都别看了」开着，得她说「以后都可以看了」才恢复。')
+        : (st.paused ? h('div', { className: 'ming-sub', style: { marginTop: 10 } }, '今天暂停' + (st.pauseDate ? '（' + st.pauseDate + '）' : '') + '，明天自己失效。') : null),
+    ),
+  )
+}
+
+function BrowseIcon() {
+  return h('svg', { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7 },
+    h('circle', { cx: 12, cy: 12, r: 9 }),
+    h('path', { d: 'M15.5 8.5l-2 5-5 2 2-5 5-2z' }),
+  )
+}
+
+/**
+ * dsh-ming-desktop —— 桌面（Client 半端源码）
+ *
+ * 2026-11-07 19:1x 加：她要看的是「这只手最近看见了什么、合出了什么」，
+ * 不是一堆按钮。所以这里只列最近截的图（缩略图点开就是原图）和最近的语音，能听。
+ * 真要看屏幕 / 要动手，仍然走 desk_* 工具——边界写在工具描述里，不搬到面板上当按钮。
+ */
+const DESKTOP_API = '/_dsh/dsh-ming-desktop'
+
+function DesktopPanel() {
+  const [data, setData] = useState(null)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [playing, setPlaying] = useState('')
+  // 2026-11-07 19:2x：她说「能不能点图片放大」——面板里就地放大，不开新标签
+  //（新标签会被浏览器拦，而且离开了这一页）。
+  const [zoom, setZoom] = useState('')
+
+  const load = useCallback(() => {
+    setBusy(true)
+    setErr('')
+    return fetch(DESKTOP_API + '/state', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => { if (d.error) setErr(String(d.error)); else setData(d) })
+      .catch((e) => setErr(String((e && e.message) || e)))
+      .finally(() => setBusy(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const shots = (data && data.shots) || []
+  const voices = (data && data.voices) || []
+
+  return h('div', { className: 'ming-panel' },
+    h('div', { className: 'ming-head' },
+      h('span', { className: 'ming-title' }, '桌面'),
+      h('span', { className: 'ming-sub' }, busy ? '读取中…' : shots.length + ' 张截图 · ' + voices.length + ' 段语音'),
+      h('button', { className: 'ming-btn', style: { marginLeft: 'auto' }, onClick: load }, '刷新'),
+    ),
+    h('div', { className: 'ming-body ming-scroll' },
+      err ? h('div', { className: 'ming-empty' }, '△ ' + err) : null,
+      h('div', { className: 'ming-card', style: { display: 'flex', gap: 10, flexWrap: 'wrap' } },
+        h('span', { className: 'ming-pill' }, data ? (data.enabled ? '桌面控制开着' : '桌面控制关着') : '…'),
+        h('span', { className: 'ming-pill', title: (data && data.shotDir) || '' }, '截图目录 live 外的 shots/'),
+      ),
+      shots.length === 0 && !err ? h('div', { className: 'ming-empty' }, '还没截过图') : null,
+      shots.length
+        ? h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 6 } },
+          shots.map((f, i) => h('button', {
+            key: i,
+            type: 'button',
+            title: f.name + ' · ' + fmtDay(f.mtime) + '（点开看大图）',
+            onClick: () => setZoom(f.name),
+            style: {
+              display: 'block', padding: 0, cursor: 'zoom-in', background: 'transparent',
+              border: '1px solid var(--dsw-alias-separator-secondary)', borderRadius: 6, overflow: 'hidden',
+            },
+          }, h('img', {
+            src: DESKTOP_API + '/file?name=' + encodeURIComponent(f.name),
+            alt: f.name,
+            style: { display: 'block', width: 168, height: 96, objectFit: 'cover' },
+          }))))
+        : null,
+      voices.length
+        ? h('div', { style: { marginTop: 12 } },
+          h('div', { className: 'ming-sub', style: { paddingBottom: 4 } }, '最近合成'),
+          voices.map((f, i) => h('div', { key: 'v' + i, style: { padding: '4px 0', borderBottom: '1px solid var(--dsw-alias-separator-secondary)' } },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+              h('button', {
+                className: 'ming-btn', style: { padding: '1px 8px' },
+                onClick: () => setPlaying(playing === f.name ? '' : f.name),
+              }, playing === f.name ? '■' : '▶'),
+              h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: f.name }, f.name),
+              h('span', { className: 'ming-sub' }, fmtSize(f.size)),
+              h('span', { className: 'ming-sub', style: { width: 76, textAlign: 'right' } }, fmtDay(f.mtime)),
+            ),
+            playing === f.name
+              ? h('audio', { controls: true, autoPlay: true, style: { width: '100%', marginTop: 4 }, src: DESKTOP_API + '/file?kind=voice&name=' + encodeURIComponent(f.name) })
+              : null,
+          )))
+        : null,
+    ),
+    // 放大层：铺满面板，点一下关掉
+    zoom
+      ? h('div', {
+        onClick: () => setZoom(''),
+        style: {
+          position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.86)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out',
+        },
+      },
+        h('img', {
+          src: DESKTOP_API + '/file?name=' + encodeURIComponent(zoom),
+          alt: zoom,
+          style: { maxWidth: '92vw', maxHeight: '92vh', boxShadow: '0 8px 40px rgba(0,0,0,.6)', borderRadius: 4, animation: 'mgPop .16s ease both' },
+        }),
+        h('div', {
+          style: { position: 'absolute', bottom: 18, left: 0, right: 0, textAlign: 'center', color: '#bbb', fontSize: 12 },
+        }, zoom + ' · 点任意处关闭'),
+      )
+      : null,
+  )
+}
+
+/**
+ * dsh-ming-resume —— 记忆接续（Client 半端源码）
+ *
+ * 2026-11-07 19:1x 加：这一页回答两个问题——「我现在在做哪件事」和「最近被打断了几次」。
+ * 只读。status.json 是给人看的账，不该由面板代笔。
+ */
+const RESUME_API = '/_dsh/dsh-ming-resume'
+
+function ResumePanel() {
+  const [data, setData] = useState(null)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(() => {
+    setBusy(true)
+    setErr('')
+    return fetch(RESUME_API + '/state', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => { if (d.error) setErr(String(d.error)); else setData(d) })
+      .catch((e) => setErr(String((e && e.message) || e)))
+      .finally(() => setBusy(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const log = (data && data.log) || []
+  const recent = (data && data.recent) || []
+
+  return h('div', { className: 'ming-panel' },
+    h('div', { className: 'ming-head' },
+      h('span', { className: 'ming-title' }, '记忆接续'),
+      h('span', { className: 'ming-sub' }, busy ? '读取中…' : (data && data.resumePage ? '有重启交接页' : '没有交接页')),
+      h('button', { className: 'ming-btn', style: { marginLeft: 'auto' }, onClick: load }, '刷新'),
+    ),
+    h('div', { className: 'ming-body ming-scroll' },
+      err ? h('div', { className: 'ming-empty' }, '△ ' + err) : null,
+      h('div', { className: 'ming-card' },
+        h('div', { className: 'ming-sub' }, '现在在做'),
+        h('div', { style: { paddingTop: 4, fontWeight: 600 } }, data ? (data.doing || '（status.json 里 doing 空着）') : '…'),
+        data && data.detail ? h('div', { className: 'ming-sub', style: { paddingTop: 2 } }, data.detail) : null,
+      ),
+      recent.length
+        ? h('div', { className: 'ming-card', style: { marginTop: 8 } },
+          h('div', { className: 'ming-sub' }, '刚做过'),
+          recent.map((t, i) => h('div', { key: i, style: { paddingTop: 3 } }, '· ' + String(t))))
+        : null,
+      h('div', { className: 'ming-card', style: { marginTop: 8 } },
+        h('div', { className: 'ming-sub' }, '被打断过（最近 ' + log.length + ' 次）'),
+        log.length === 0
+          ? h('div', { className: 'ming-empty' }, '这版插件上线以来还没被插过话')
+          : log.map((e, i) => h('div', { key: 'l' + i, style: { paddingTop: 3, display: 'flex', gap: 8 } },
+            h('span', { className: 'ming-sub', style: { width: 96, flex: '0 0 auto' } }, fmtDay(Date.parse(e.at) || 0)),
+            h('span', { style: { flex: '1 1 auto', minWidth: 0 } }, e.doing || '（当时 status 是空的）'),
+          )),
+      ),
+    ),
+  )
+}
+
 
 
 /**
@@ -1569,7 +2460,25 @@ window.__ModuleLoader__.load({
  *   数据只有一份，过滤只在渲染层做。
  */
 
+// 2026-11-07 21:23：版本号改成「构建那一刻」——它就是判据：面板上印的时间对不上，
+// 说明浏览器拿的还是旧 bundle（今天为此白改过两次）。
+const MG_VERSION = '2026-11-07 22:11'
+
+// 侧栏那个名字（2026-11-07 22:0x 她说的）：自己用叫「她的一生」，对外发布要另一个名字，
+// 两者不该靠改代码切换——写死一个，发布前改一遍、自己用又改回来，迟早漏。
+// 默认「她的一生」；发布版在页面里先注入 `window.__MING_GRAPH_LABEL = '...'` 即可覆盖。
+const PANEL_LABEL = (typeof window !== 'undefined' && window.__MING_GRAPH_LABEL) || '她的一生'
 const API = '/_dsh/dsh-ming-graph'
+if (typeof window !== 'undefined' && !window.__MG_ERR_HOOK) {
+  window.__MG_ERR_HOOK = 1
+  window.__MG_ERR = ''
+  window.addEventListener('error', (e) => {
+    window.__MG_ERR = String((e && e.message) || '') + ' / ' + String((e && e.error && e.error.stack) || '')
+  })
+  window.addEventListener('unhandledrejection', (e) => {
+    window.__MG_ERR = 'promise: ' + String((e && e.reason && (e.reason.stack || e.reason.message)) || e.reason || '')
+  })
+}
 
 const PAGE_CSS = `
 .mg-mount{height:100%;min-height:480px;display:flex;flex-direction:column;position:relative}
@@ -1583,6 +2492,8 @@ const PAGE_CSS = `
 .mg-btn:disabled{opacity:.5;cursor:default}
 /* ---- top 栏（2026-11-07） ---- */
 .mg-top{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:7px 12px;border-bottom:1px solid var(--dsw-alias-separator-secondary)}
+.mg-brand{display:inline-flex;align-items:baseline;gap:7px;margin-right:8px;font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--dsw-alias-label-primary);white-space:nowrap}
+.mg-brand i{font-style:normal;font-size:10px;font-weight:400;letter-spacing:.08em;color:var(--dsw-alias-label-secondary);opacity:.7}
 .mg-seg{display:inline-flex;border:1px solid var(--dsw-alias-separator-secondary);border-radius:6px;overflow:hidden}
 .mg-seg button{appearance:none;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font-size:12px;padding:3px 10px;cursor:pointer}
 .mg-seg button.on{background:var(--dsw-alias-bg-hover, rgba(127,127,127,.14));color:var(--dsw-alias-label-primary)}
@@ -1606,7 +2517,33 @@ const PAGE_CSS = `
 .mg-lg{width:15px;height:11px;border-radius:3px}
 .mg-note{display:flex;align-items:center;justify-content:center;height:100%;color:var(--dsw-alias-label-tertiary);font-size:13px;
   padding:24px;text-align:center;line-height:22px;white-space:pre-wrap}
+/* ================= 2026-11-07 19:3x 动画与可读性 =================
+   她说「给整个界面加动画过渡、更好地可读交互」。
+   原则：动的是「出现/切换」，不动位置；一个动画不超过 200ms，不做循环。 */
+@keyframes mgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@keyframes mgPop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+.mg-holder>.ming-panel,.mg-holder>.svx-root{animation:mgIn .18s ease both}
+.ming-panel{font-size:13.5px;line-height:1.72}
+.ming-card{transition:border-color .15s ease,box-shadow .15s ease}
+.ming-card:hover{border-color:var(--dsw-alias-border-l3)}
+.ming-row{padding:6px 6px;border-radius:6px;transition:background .12s ease,transform .06s ease}
+.ming-row:hover{background:var(--dsw-alias-bg-hover,rgba(127,127,127,.08))}
+.ming-row:active{transform:scale(.997)}
+.ming-btn,.mg-btn,.mg-chip,.mg-seg button{transition:color .12s ease,border-color .12s ease,background .12s ease,transform .06s ease}
+.ming-btn:active,.mg-btn:active,.mg-chip:active{transform:scale(.96)}
+.mg-seg button{position:relative}
+.mg-seg button.on::after{content:'';position:absolute;left:10px;right:10px;bottom:1px;height:1.5px;background:currentColor;border-radius:2px;animation:mgIn .16s ease both}
+.ming-sub{font-size:12px;color:var(--dsw-alias-label-secondary)}
+.ming-kpi{font-variant-numeric:tabular-nums}
+.ming-scroll{scrollbar-width:thin;scrollbar-color:rgba(127,127,127,.28) transparent}
+.ming-scroll::-webkit-scrollbar{width:9px;height:9px}
+.ming-scroll::-webkit-scrollbar-thumb{background:rgba(127,127,127,.22);border-radius:5px;border:2px solid transparent;background-clip:content-box}
+.ming-scroll::-webkit-scrollbar-thumb:hover{background:rgba(127,127,127,.42);background-clip:content-box}
+.ming-scroll::-webkit-scrollbar-track{background:transparent}
+.mg-zoom{_:_}
+.mg-zoom img{animation:mgPop .16s ease both}
 `
+
 
 // ---------------- 侧栏图标 ----------------
 // sidebar.panellist 只问「图标长什么样」：owner props = { size, active }
@@ -1631,6 +2568,147 @@ function GraphIcon(props) {
 // 边类型：跟 Host 的 e.kind 一一对应（ref / cokey / project / adjacent / subject）
 const WAYS = ['引用', '共词', '归属', '补边', '主语']
 
+// ---- 记忆库视图（2026-11-07） ----
+// 她说：有图就别再另开一个侧栏图标，记忆就在这张图顶上开一格。
+// 数据走 dsh-ming-memory 的只读路由，跟图没关系——一个列旧账，一个看形状。
+const MEMORY_API = '/_dsh/dsh-ming-memory'
+
+function fmtClock(ms) {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const p = (n) => String(n).padStart(2, '0')
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes())
+}
+
+// 2026-11-07 19:0x：记忆 tab 改成吃**统一节点模型**（/_dsh/dsh-ming-graph/neurons/unified），
+// 不再依赖 dsh-ming-memory 的 /list——那个插件的 Host 半端一直没能加载（exports 里没有 "."），
+// 每次打开都是 △ HTTP 404。图这边本来就把 notes 全读进来了，章也在里面，不用再绕一圈。
+function MemoryView(props) {
+  const q = (props && props.q) || ''
+  // 2026-11-07 21:4x：选中态穿过视图。外面（星图、搜索）选中了哪条，这里跟着展开；
+  // 这里点开一条，也报回上层——切回星图时对着同一颗星。之前三个视图各管各的。
+  const selId = (props && props.selId) || ''
+  const [items, setItems] = useState([])
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [openId, setOpenId] = useState('')
+  const [chap, setChap] = useState('')
+
+  const load = useCallback(() => {
+    setBusy(true)
+    setErr('')
+    return fetch('/_dsh/dsh-ming-graph/neurons/unified', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => {
+        if (d && d.error) { setErr(String(d.error)); return }
+        const rows = (d.nodes || [])
+          .filter((n) => n.kind === 'memory')
+          .map((n) => ({
+            id: n.id,
+            title: n.title || n.id,
+            body: n.body || n.excerpt || '',
+            date: n.date || '',
+            at: n.at || 0,
+            tags: (n.tags || []).join(' '),
+            source: n.source || '',
+            chapter: n.chapter || 0,
+            chapterName: n.chapterName || '',
+          }))
+          .sort((a, b) => (b.at || 0) - (a.at || 0))
+        setItems(rows)
+        if (props && props.onData) props.onData({ items: rows, total: rows.length })
+      })
+      .catch((e) => setErr(String((e && e.message) || e)))
+      .finally(() => setBusy(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!selId) return
+    if (items.some((x) => x.id === selId)) setOpenId(selId)
+  }, [selId, items])
+
+  const kw = q.trim().toLowerCase()
+  const shown = items
+    .filter((it) => (!kw ? true : (it.id + ' ' + it.title + ' ' + it.tags + ' ' + it.source).toLowerCase().indexOf(kw) >= 0))
+    .filter((it) => {
+      if (!chap) return true
+      if (chap === 'none') return !it.chapter
+      return String(it.chapter) === chap
+    })
+
+  const opened = openId ? items.find((x) => x.id === openId) : null
+  if (opened) {
+    return h('div', { className: 'ming-panel' },
+      h('div', { className: 'ming-head' },
+        h('button', { className: 'ming-btn', onClick: () => setOpenId('') }, '← 返回'),
+        h('span', { className: 'ming-title', style: { fontSize: 13 } }, opened.title),
+        opened.chapter ? h('span', { className: 'ming-pill' }, '第' + opened.chapter + '章') : null,
+        h('span', { className: 'ming-sub', style: { marginLeft: 'auto' } }, opened.date),
+      ),
+      h('div', { className: 'ming-body ming-scroll' },
+        h('div', {
+          className: 'ming-card',
+          style: { whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13.5, lineHeight: 1.85, letterSpacing: '.01em' },
+        }, opened.body || '（这条没有正文）'),
+      ),
+    )
+  }
+
+  return h('div', { className: 'ming-panel' },
+    h('div', { className: 'ming-head' },
+      h('span', { className: 'ming-sub' }, busy ? '读取中…' : items.length + ' 条记忆'),
+      h('button', { className: 'ming-btn', style: { marginLeft: 'auto' }, onClick: load }, '刷新'),
+    ),
+    h('div', { className: 'ming-body ming-scroll' },
+      err ? h('div', { className: 'ming-empty' }, '△ ' + err) : null,
+      // 按章筛选：八章 + 未分章
+      items.length ? h('div', { style: { display: 'flex', gap: 5, flexWrap: 'wrap', padding: '2px 0 8px' } },
+        ['', '1', '2', '3', '4', '5', '6', '7', '8', 'none'].map((c) => {
+          const hit = items.find((x) => String(x.chapter) === c)
+          const label = c === '' ? '全部' : c === 'none' ? '未分章' : ((hit && hit.chapterName) || ('第' + c + '章'))
+          return h('button', {
+            key: c || 'all',
+            className: 'mg-chip' + (chap === c ? ' on' : ''),
+            onClick: () => setChap(c),
+          }, label)
+        }),
+      ) : null,
+      (!err && shown.length === 0) ? h('div', { className: 'ming-empty' }, busy ? '…' : '没有匹配的记忆') : null,
+      h('div', null, shown.map((it) => h('div', {
+        key: it.id,
+        className: 'ming-row',
+        style: { cursor: 'pointer' },
+        onClick: () => { setOpenId(it.id); if (props.onSelect) props.onSelect(it.id) },
+        title: it.id,
+      },
+        h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, it.title),
+        it.chapter ? h('span', { className: 'ming-pill' }, '第' + it.chapter + '章') : null,
+        h('span', { className: 'ming-sub' }, it.date || ''),
+      ))),
+    ),
+  )
+}
+
+// 2026-11-07 16:30 加、19:1x 补回（做记忆 tab 替换时被一并切掉了，于是面板一崩就整块黑）。
+class PanelBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { err: '' } }
+  static getDerivedStateFromError(e) { return { err: String((e && e.stack) || e) } }
+  componentDidCatch(e) {
+    try {
+      this.setState({ err: String((e && e.stack) || e) + ' / 最近一条全局错误：' + String(window.__MG_ERR || '(无)') })
+    } catch (x) {}
+  }
+  render() {
+    if (this.state.err) {
+      return h('div', { style: { padding: '14px 18px', fontFamily: 'ui-monospace, Consolas, monospace', fontSize: '12px', lineHeight: '18px', whiteSpace: 'pre-wrap', color: 'var(--dsw-alias-state-error-primary)', overflow: 'auto', height: '100%' } },
+        '家底崩了（v' + MG_VERSION + '）：' + this.state.err)
+    }
+    return this.props.children
+  }
+}
+
 function NeuronPanel() {
   const holder = useRef(null)
   const viewRef = useRef(null)
@@ -1639,6 +2717,11 @@ function NeuronPanel() {
   const [busy, setBusy] = useState(false)
   const [info, setInfo] = useState(null)
   const [view, setView] = useState('neuron')      // neuron | star
+  // 2026-11-07 21:4x：一个选中态穿过三个视图（神经元的搜索 / 星图点星 / 记忆列表）。
+  // selRef 是给「挂载那一刻」用的：星图 effect 的闭包里拿不到最新的 selId。
+  const [selId, setSelId] = useState('')
+  const selRef = useRef('')
+  useEffect(() => { selRef.current = selId }, [selId])
   const [q, setQ] = useState('')
   const [ways, setWays] = useState(WAYS.slice())
   const starHost = useRef(null)
@@ -1657,6 +2740,8 @@ function NeuronPanel() {
     return fetch(url, { cache: 'no-store' })
       .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
       .then((d) => {
+        // 2026-11-07 22:1x：群号/群名从本机配置下发，不写进代码（这个仓是公开的）。
+        if (d && d.roomLabels) { try { window.__MING_ROOMS = d.roomLabels } catch (e) {} }
         if (d && d.error) { setErr(String(d.error)); setStatus('error'); return }
         if (!window.__MingNeuronView) { setErr('渲染层没装上（neuron-view 未加载）'); setStatus('error'); return }
         if (viewRef.current && viewRef.current.destroy) viewRef.current.destroy()
@@ -1694,15 +2779,37 @@ function NeuronPanel() {
     setWays((cur) => (cur.indexOf(t) >= 0 ? cur.filter((x) => x !== t) : cur.concat([t])))
   }
 
+  const memRef = useRef(null)
+  const [reloadTick, setReloadTick] = useState(0)
+  // 2026-11-07 18:3x：星图那份 unified 是带缓存的。记忆卡刚生成、面板还显示 0 章，
+  // 就是因为重挂只会再打一次 /neurons/unified（命中缓存）。点刷新要强制重建。
+  const forceStar = useRef(false)
+
+  // 导出：三个视图都出东西——神经元出图、星图出统一模型、记忆出当前列表。
   function exportJson() {
-    const snap = viewRef.current && viewRef.current.snapshot ? viewRef.current.snapshot() : null
+    let snap = null
+    let tag = 'neurons'
+    if (view === 'neuron') {
+      snap = viewRef.current && viewRef.current.snapshot ? viewRef.current.snapshot() : null
+    } else if (view === 'star') {
+      snap = starData; tag = 'unified'
+    } else if (view === 'memory') {
+      snap = memRef.current; tag = 'archive'
+    }
     if (!snap) return
     const blob = new Blob([JSON.stringify(snap, null, 1)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = 'ming-neurons-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '') + '.json'
+    a.download = 'ming-' + tag + '-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '') + '.json'
     document.body.appendChild(a); a.click(); a.remove()
     setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+  }
+
+  function refreshAll() {
+    setReloadTick((t) => t + 1)
+    setQ('')
+    if (view === 'neuron') load(true)
+    if (view === 'star') forceStar.current = true
   }
 
   // 星图：吃同一份统一节点模型（/neurons/unified），画法在 src/star-view.js
@@ -1712,81 +2819,42 @@ function NeuronPanel() {
       setStarState('idle')
       return
     }
-    if (starRef.current) return
     setStarState('loading')
     let alive = true
-    fetch(API + '/neurons/unified', { cache: 'no-store' })
+    const starUrl = API + (forceStar.current ? '/neurons/unified/refresh' : '/neurons/unified')
+    forceStar.current = false
+    fetch(starUrl, { cache: 'no-store' })
       .then((r) => {
         setStarInfo('HTTP ' + r.status)
         if (!r.ok) throw new Error('HTTP ' + r.status)
         return r.json()
       })
       .then((d) => {
+        if (d && d.roomLabels) { try { window.__MING_ROOMS = d.roomLabels } catch (e) {} }
         if (!alive) return
         if (d && d.error) { setStarErr(String(d.error)); setStarState('error'); return }
         if (!window.__MingNeuronView) { setStarErr('渲染层没装上（neuron-view 未加载）'); setStarState('error'); return }
         const nNodes = (d.nodes || []).length
         setStarInfo(`HTTP 200 · 节点 ${nNodes} · ${d.stats && d.stats.source || ''}`)
-        // 2026-11-07 12:58：上一版只量了 starHost，量不出真正的问题（它 360，但里面可能是 0）。
-        // mount 之后延迟再量一次 stage 和 canvas —— 画不出来只有两种可能：尺寸 0，或者坐标没落在画布上。
-        const probe = (tag) => {
-          try {
-            const st = starHost.current && starHost.current.querySelector('.nv-stage')
-            const cv = starHost.current && starHost.current.querySelector('canvas')
-            const host = starHost.current
-            setStarInfo(`${tag} · 节点 ${nNodes} · host ${host ? host.clientWidth + '×' + host.clientHeight : '无'}` +
-              ` · stage ${st ? st.clientWidth + '×' + st.clientHeight : '无'}` +
-              ` · canvas ${cv ? cv.width + '×' + cv.height : '无'}` +
-              (window.__NV_DEBUG ? ' · ' + JSON.stringify(window.__NV_DEBUG) : ' · 无DEBUG'))
-          } catch (e) { setStarInfo(tag + ' · 测量失败 ' + e.message) }
+        // 2026-11-07 15:00：不画 canvas 了，改用 DOM 版银河（src/star-view.js 重写）。
+        // 这一版每个点是一个 div，画不出来只可能是「没挂上」，不可能是「画错了」。
+        const SV = window.__MingStarView
+        if (!SV) { setStarErr('星图渲染层没装上（star-view 未加载）'); setStarState('error'); return }
+        try {
+          if (starRef.current && starRef.current.destroy) starRef.current.destroy()
+          starRef.current = SV.mount(starHost.current, d, { onSelect: setSelId, initialId: selRef.current })
+          const st = (starRef.current.stats && starRef.current.stats()) || {}
+          setStarInfo('节点 ' + nNodes + ' · 已画 ' + (st.dots || 0) + ' 点 · ' + (st.size ? st.size[0] + '×' + st.size[1] : '') + ' · ' + ((d.stats && d.stats.source) || ''))
+          setStarState('ready')
+        } catch (e) {
+          setStarErr('挂载失败：' + String((e && e.message) || e))
+          setStarState('error')
         }
-        probe('挂载后')
-        // 2026-11-07 12:25：她说「照着神经元改，别自己想代码」——
-        // 星图现在就是同一套渲染（3D 球面、光晕、拖拽、侧栏、plane 详情），
-        // 只把布局换成 galaxy（核球 + 旋臂 + 时间环），不画边。
-        // 2026-11-07 13:50：不走 canvas 了。今天在画布上耗了一小时——投影、尺寸链、RO 抖动，
-        // 每一层都能让图变成空白。换成纯 DOM 网格：没有画布，就不存在"画不出来"。
-        setStarData(d)
-        setStarState('ready')
       })
       .catch((e) => { if (alive) { setStarErr(String((e && e.message) || e)); setStarState('error') } })
     return () => { alive = false }
-  }, [view])
+  }, [view, reloadTick])
 
-  // 2026-11-07 13:51：DOM 网格的数据，一次算好；渲染只用 div，不碰 canvas。
-  const grid = (() => {
-    const nodes = (starData && starData.nodes) || []
-    if (!nodes.length) return null
-    const ROWS = ['深水区', '巅峰之战', '浅水区', '其他群', '私聊', '系统']
-    const rowOf = (n) => {
-      const r = String(n.room || '')
-      if (r.includes('<group-a>')) return 0
-      if (r.includes('<group-b>')) return 1
-      if (r.includes('<group-c>')) return 2
-      if (r.startsWith('group')) return 3
-      if (r.startsWith('private')) return 4
-      return 5
-    }
-    const timed = nodes.filter((n) => n.at)
-    const t0 = timed.length ? Math.min(...timed.map((n) => n.at)) : Date.now()
-    const t1 = timed.length ? Math.max(...timed.map((n) => n.at)) : Date.now()
-    const DAY = 86400000
-    const days = Math.max(1, Math.floor((t1 - t0) / DAY) + 1)
-    const cell = new Map()
-    const rowCount = ROWS.map(() => 0)
-    let max = 0
-    for (const n of nodes) {
-      const ri = rowOf(n)
-      rowCount[ri]++
-      const d = n.at ? Math.floor((n.at - t0) / DAY) : 0
-      const k = ri * 10000 + d
-      const v = (cell.get(k) || 0) + 1
-      cell.set(k, v)
-      if (v > max) max = v
-    }
-    const label = (d) => new Date(t0 + d * DAY).toISOString().slice(5, 10)
-    return { ROWS, days, cell, rowCount, max: Math.max(1, max), label, total: nodes.length }
-  })()
 
   const when = info && info.at ? new Date(info.at).toLocaleTimeString('zh-CN', { hour12: false }) : ''
   const meta = info
@@ -1796,96 +2864,108 @@ function NeuronPanel() {
   // 星图那一格：真的接上了（2026-11-07），数据来自 /neurons/unified，画法是 src/star-view.js。
 
   return h('div', { className: 'mg-mount' },
-    h('style', null, PAGE_CSS),
+    h('style', null, PAGE_CSS + MING_UI.css('ming')),
 
     // ---- top 栏：全局操作 ----
     h('div', { className: 'mg-top' },
+      // 2026-11-07 21:53 她定：名字用回「她的一生」，括号里挂 hers life。
+      // 上一轮我起的「家底」她不要——名字是她的，我改回来，理由记在 live/星图合并 里。
+      h('span', { className: 'mg-brand' }, '她的一生', h('i', null, 'hers life')),
+      // tab 分两组：竖线左边是记下来的，右边是我干活用的。
       h('div', { className: 'mg-seg' },
-        h('button', { className: view === 'neuron' ? 'on' : '', onClick: () => setView('neuron') }, '神经元'),
-        h('button', { className: view === 'star' ? 'on' : '', onClick: () => setView('star') }, '星图'),
+        [['neuron', '神经元'], ['star', '星图'], ['memory', '记忆'], ['|'],
+          ['browse', '自己玩'], ['interest', '兴趣'], ['voice', '声音'], ['desktop', '桌面'], ['resume', '接续']]
+          .map(([k, label]) => k === '|'
+            ? h('span', { key: 'sep', style: { width: 1, height: 18, background: 'var(--dsw-alias-border-secondary, rgba(150,150,170,.28))', margin: '0 4px', alignSelf: 'center' } })
+            : h('button', { key: k, className: view === k ? 'on' : '', onClick: () => setView(k) }, label)),
       ),
+      // 2026-11-07 15:0x：搜索三个视图共用——神经元过滤节点、星图定位一颗星、记忆过滤列表。
       h('input', {
         className: 'mg-input',
-        placeholder: '搜标题 / 正文里的词',
+        placeholder: view === 'memory' ? '按 id / 标签 / 来源过滤' : (view === 'star' ? '找一颗星：标题或正文里的词'
+          : view === 'neuron' ? '搜标题 / 正文里的词' : '（这个视图不用搜）'),
+        disabled: view === 'browse' || view === 'interest' || view === 'voice' || view === 'desktop' || view === 'resume',
         value: q,
-        disabled: view !== 'neuron' || status !== 'ready',
         onChange: (e) => setQ(e.target.value),
       }),
-      h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+      view === 'neuron' ? h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
         WAYS.map((t) => h('button', {
           key: t,
           className: 'mg-chip' + (ways.indexOf(t) >= 0 ? ' on' : ''),
-          disabled: view !== 'neuron' || status !== 'ready',
+          disabled: status !== 'ready',
           title: '关掉这一类边，节点不删',
           onClick: () => toggleWay(t),
         }, t)),
-      ),
+      ) : null,
       h('span', { className: 'mg-gap' }),
-      h('button', { className: 'mg-btn', disabled: view !== 'neuron' || status !== 'ready', onClick: exportJson, title: '把这整份图导出成 JSON' }, '导出'),
+      h('button', {
+        className: 'mg-btn',
+        disabled: view === 'neuron' ? status !== 'ready' : (view === 'star' ? starState !== 'ready' : false),
+        onClick: exportJson,
+        title: view === 'memory' ? '导出当前这份归档列表' : (view === 'star' ? '导出统一节点模型' : '把这整份图导出成 JSON'),
+      }, '导出'),
       h('button', {
         className: 'mg-btn',
         disabled: busy,
-        title: '重读两侧记忆库，并重新加载建图代码（改了 neuron.js 也按这个就生效）',
-        onClick: () => load(true),
+        title: '重读数据源（神经元顺带重新加载建图代码）',
+        onClick: refreshAll,
       }, busy ? '刷新中…' : '刷新'),
     ),
 
     // ---- 第二行：状态（切到星图时也用它报状态，免得"点了没反应"看不出是卡在哪） ----
     h('div', { className: 'mg-bar' },
       h('span', { className: 'mg-meta' },
-        view === 'neuron'
-          ? (status === 'ready' ? meta : '')
-          : (starState === 'error' ? '星图读不到：' + starErr
-            : starState === 'ready' ? '星图 · 统一节点模型已加载'
-              : '星图 · 正在拼统一节点模型…')),
+        view === 'browse' ? '自己玩 · 什么时候醒，看什么，记了什么'
+          : view === 'interest' ? '兴趣 · 叫不叫得醒，还有为什么'
+            : view === 'voice' ? '声音 · 合出来的 mp3，点 ▶ 试听'
+              : view === 'desktop' ? '桌面 · 这只手最近看见的和说出来的'
+                : view === 'resume' ? '接续 · 现在在做哪件事，被打断过几次'
+              : view === 'memory'
+          ? '记忆库 · 只读，点一行看正文'
+          : view === 'neuron'
+            ? (status === 'ready' ? meta : '')
+            : (starState === 'error' ? '星图读不到：' + starErr
+              : starState === 'ready' ? ('星图 · ' + (starInfo || '已加载'))
+                : '星图 · 正在拼统一节点模型…')),
     ),
 
     // 2026-11-07 12:37：报错 `Cannot set properties of null (setting 'innerHTML')`。
     // 根因：星图那个 div 是条件渲染的，effect 跑的那一瞬 ref 还是 null，mount 里 host.innerHTML 就炸在这。
     // 改成**两个容器都常驻**、只用 display 切换：ref 从挂载起一直有效，切换时不再有「还没有节点」的空窗。
+    // 记忆库（跟另外两块并列，同样靠 display 切换；切走就卸载，省得一直挂着轮询）
+    h('div', { key: 'mem' + reloadTick, className: 'mg-holder', style: view === 'memory' ? null : { display: 'none' } },
+      view === 'memory' ? h(MemoryView, { q, selId, onSelect: setSelId, onData: (d) => { memRef.current = d } }) : null,
+    ),
+    // 逛到哪儿 / 兴趣 / 声音：从各自的插件搬进来的渲染，路由还是各自的
+    h('div', { key: 'browse' + reloadTick, className: 'mg-holder', style: view === 'browse' ? null : { display: 'none' } },
+      view === 'browse' ? h(BrowsePanel) : null,
+    ),
+    h('div', { key: 'interest' + reloadTick, className: 'mg-holder', style: view === 'interest' ? null : { display: 'none' } },
+      view === 'interest' ? h(InterestPanel) : null,
+    ),
+    h('div', { key: 'voice' + reloadTick, className: 'mg-holder', style: view === 'voice' ? null : { display: 'none' } },
+      view === 'voice' ? h(VoicePanel) : null,
+    ),
+    // 2026-11-07 19:1x 她说「还是别合并了」：桌面和接续各留一格。
+    h('div', { key: 'desktop' + reloadTick, className: 'mg-holder', style: view === 'desktop' ? null : { display: 'none' } },
+      view === 'desktop' ? h(DesktopPanel) : null,
+    ),
+    h('div', { key: 'resume' + reloadTick, className: 'mg-holder', style: view === 'resume' ? null : { display: 'none' } },
+      view === 'resume' ? h(ResumePanel) : null,
+    ),
+
     h('div', {
       ref: holder, className: 'mg-holder',
       style: view === 'neuron' && status === 'ready' ? null : { display: 'none' },
     }),
+    // 星图：DOM 版银河（src/star-view.js），mount 到这个 ref；切走就 destroy，别让 1271 个 div 一直挂着。
+    // 2026-11-07 18:1x：这个 div 里**只能有我挂的东西**。上一版把「加载中/读不到」两行字也渲染在里面，
+    // star-view 挂载时 host.innerHTML='' 把它们清掉了，React 回头要删这两行 —— 它已经不在 DOM 里，
+    // 于是 NotFoundError: removeChild。提示挪到外面，容器本身永远空着。
     h('div', { className: 'mg-holder', style: view === 'star' ? null : { display: 'none' } },
-      h('div', { className: 'mg-bar', style: { padding: '7px 16px' } },
-        h('b', { style: { fontSize: 13, color: 'var(--dsw-alias-label-primary)', marginRight: 10 } }, '记忆地图'),
-        h('span', { className: 'mg-meta' }, grid ? (grid.total + ' 条 · 跨 ' + grid.days + ' 天') : '')),
       starState === 'loading' ? h('div', { className: 'mg-msg' }, '正在拼统一节点模型…') : null,
       starState === 'error' ? h('div', { className: 'mg-msg err' }, '星图读不到：' + starErr) : null,
-      grid ? h('div', { className: 'mg-gridwrap' },
-        h('div', { className: 'mg-grid', style: { gridTemplateColumns: '96px repeat(' + grid.days + ', minmax(10px, 1fr))' } },
-          grid.ROWS.flatMap((name, ri) => [
-            h('div', { key: 'l' + ri, className: 'mg-rl' }, name, h('b', null, String(grid.rowCount[ri]))),
-            ...Array.from({ length: grid.days }, (_, d) => {
-              const n = grid.cell.get(ri * 10000 + d) || 0
-              const t = n ? Math.min(1, Math.pow(n / grid.max, 0.72)) : 0
-              return h('div', {
-                key: ri + '-' + d,
-                className: 'mg-cell',
-                title: grid.label(d) + ' · ' + name + ' · ' + n + ' 条',
-                style: n
-                  ? {
-                    background: 'rgba(45,212,191,' + (0.12 + 0.78 * t).toFixed(2) + ')',
-                    boxShadow: t > 0.8 ? '0 0 9px rgba(45,212,191,.45)' : undefined,
-                  }
-                  : { background: 'rgba(255,255,255,.035)' },
-              })
-            }),
-          ]),
-        ),
-        h('div', { className: 'mg-grid mg-xaxis', style: { gridTemplateColumns: '96px repeat(' + grid.days + ', minmax(10px, 1fr))' } },
-          h('div', { key: 'x0' }),
-          ...Array.from({ length: grid.days }, (_, d) => h('div', { key: 'x' + d, className: 'mg-xt' }, d % 4 === 0 ? grid.label(d) : '')),
-        ),
-        h('div', { className: 'mg-legend' },
-          h('span', null, '少'),
-          [0.18, 0.38, 0.58, 0.78, 0.9].map((a, i) =>
-            h('span', { key: 'g' + i, className: 'mg-lg', style: { background: 'rgba(45,212,191,' + a + ')' } })),
-          h('span', null, '多'),
-          h('span', { style: { marginLeft: 14, opacity: .7 } }, '共 ' + grid.total + ' 条 · ' + grid.days + ' 天'),
-        ),
-      ) : null,
+      h('div', { ref: starHost, style: { flex: 1, minHeight: '420px', display: 'flex', flexDirection: 'column' } }),
     ),
 
     view === 'neuron' && status === 'loading' ? h('div', { className: 'mg-msg' }, '正在读两侧记忆库…（第一次要扫一遍文件，大约两秒）') : null,
@@ -1899,12 +2979,12 @@ return {
     ctx.slots.inject('main', () => ctx.slots.register({
       name: 'main',
       key: 'ming-graph',
-    }, NeuronPanel))
+    }, () => h(PanelBoundary, null, h(NeuronPanel))))
     ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
       name: 'sidebar.panellist',
       id: 'ming-graph',
       order: 22,
-      label: () => '关系图',
+      label: () => PANEL_LABEL,
     }, GraphIcon))
   },
 }

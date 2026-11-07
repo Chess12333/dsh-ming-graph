@@ -19,7 +19,24 @@
  * 她的点于是写成「梨落千纪」——那是数据里的显示名，不是我该叫的名字。
  * 只覆盖需要覆盖的人，别人的群名片照旧。
  */
-const NAME_OVERRIDE = { '<owner-qq>': '浔' }
+import { readFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+// 2026-11-07 22:1x：号码不进仓库——这个仓是公开的，之前硬编码的覆盖表就这么推上去了。
+// 覆盖表改从本机配置读：~/.dsh/ming-graph.json → peopleNameOverride: { "<qq号>": "浔" }
+// 配置缺了就空着——图上照旧用群名片，不会崩。
+let NAME_OVERRIDE = {}
+try {
+  const raw = readFileSync(path.join(os.homedir(), '.dsh', 'ming-graph.json'), 'utf8')
+  const cfg = JSON.parse(raw)
+  if (cfg && cfg.peopleNameOverride && typeof cfg.peopleNameOverride === 'object') {
+    NAME_OVERRIDE = cfg.peopleNameOverride
+  } else if (cfg && cfg.ownerId && cfg.ownerName) {
+    // 老配置只写了 ownerId / ownerName 也认
+    NAME_OVERRIDE = { [String(cfg.ownerId)]: String(cfg.ownerName) }
+  }
+} catch { /* 没配置文件就空表 */ }
 
 export function mergePeople(graph) {
   if (!graph || !Array.isArray(graph.nodes)) return graph

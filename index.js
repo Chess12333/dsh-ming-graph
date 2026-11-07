@@ -65,6 +65,42 @@ export function loadLocalConfig(file) {
 }
 const LOCAL = loadLocalConfig()
 
+// 2026-11-07 19:4x：她问「关系图里还有一堆 QQ 号，能不能自动认出来」。
+// 群名本机拿不到（config.json 里只有号码），得 QQ 侧调 OneBot 的 get_group_list 写出来。
+// 这里读 live/qq-groups.json（形状 { "<群号>": "<群名>", ... } 或 { groups:[{id,name}] }），
+// 跟手填的 roomLabels 合并，手填优先。
+function loadGroupNames() {
+  const out = {}
+  // 2026-11-07 22:1x：默认路径不写进仓库（这个仓是公开的）。没配 MING_WORKSPACE 就不读，返回空表。
+  const ws = process.env.MING_WORKSPACE || ''
+  if (!ws) return out
+  const f = path.join(ws, 'live', 'qq-groups.json')
+  try {
+    const j = JSON.parse(readFileSync(f, 'utf8'))
+    if (Array.isArray(j.groups)) {
+      for (const g of j.groups) if (g && g.id && g.name) out['group:' + String(g.id)] = String(g.name)
+    } else if (j && typeof j === 'object') {
+      for (const [k, v] of Object.entries(j)) {
+        if (typeof v === 'string' && /^\d{5,12}$/.test(k)) out['group:' + k] = v
+        else if (v && typeof v === 'object' && v.name) out['group:' + k] = String(v.name)
+      }
+    }
+  } catch {}
+  return out
+}
+const GROUP_NAMES = loadGroupNames()
+
+/**
+ * 2026-11-07 22:1x：群号不进仓库（这个仓是公开的）。
+ *
+ * 客户端的「群」分带原来写死三个群号，现在改成从这里下发：本机配置 + live/qq-groups.json 合起来。
+ * 仓库里没有号，没配就是空表——视图会把所有群并进「其他群」，布局照旧，不崩。
+ */
+function withRoomLabels(data, cfg) {
+  if (!data || typeof data !== 'object') return data
+  return { ...data, roomLabels: { ...GROUP_NAMES, ...((cfg && cfg.roomLabels) || {}) } }
+}
+
 const ROUTE = '/_dsh/dsh-ming-graph'
 
 // ---------- 关键词 ----------
@@ -299,7 +335,7 @@ function build(cfg, { dsh, qq, names }) {
       name: p.name || p.id,
       isOwner: p.id === String(cfg.ownerId),
       count: p.count,
-      rooms: [...p.rooms.entries()].map(([key, count]) => ({ key, label: cfg.roomLabels[key] || key, count })).sort((a, b) => b.count - a.count),
+      rooms: [...p.rooms.entries()].map(([key, count]) => ({ key, label: (cfg.roomLabels[key] || GROUP_NAMES[key] || key), count })).sort((a, b) => b.count - a.count),
       types: p.types,
       lastAt: p.lastAt,
       claims: p.claims,
@@ -308,7 +344,7 @@ function build(cfg, { dsh, qq, names }) {
   const roomList = [...rooms.values()]
     .map((r) => ({
       key: r.key,
-      label: cfg.roomLabels[r.key] || (r.key.startsWith('group:') ? '群 ' + r.key.slice(6) : r.key === 'global' ? '全局' : r.key.replace(/^private:/, '')),
+      label: (cfg.roomLabels[r.key] || GROUP_NAMES[r.key] || (r.key.startsWith('group:') ? '群 ' + r.key.slice(6) : r.key === 'global' ? '全局' : r.key.replace(/^private:/, ''))),
       kind: r.key.startsWith('group:') ? 'group' : r.key === 'global' ? 'global' : 'private',
       count: r.count,
       people: r.people.size,
@@ -548,12 +584,12 @@ export function apply(ctx, config) {
             }
             if (method === 'neurons' || method === 'neurons/refresh') {
               if (method === 'neurons/refresh') { nKey = ''; nCache = null; neuronImpl = null; neuronImplStamp = '' }
-              respond(res, 200, await neuronSnapshot())
+              respond(res, 200, withRoomLabels(await neuronSnapshot(), cfg))
               return
             }
             if (method === 'neurons/unified' || method === 'neurons/unified/refresh') {
               if (method.endsWith('/refresh')) { nKey = ''; nCache = null; uCache = null; uKey = ''; neuronImpl = null; neuronImplStamp = '' }
-              respond(res, 200, await unifiedSnapshot())
+              respond(res, 200, withRoomLabels(await unifiedSnapshot(), cfg))
               return
             }
             respond(res, 404, { error: 'unknown method ' + method })

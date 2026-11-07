@@ -572,7 +572,7 @@ export function buildUnified(neuron, { card = '', diaries = [] } = {}) {
       // 2026-11-07 13:47：projectLabel 必须带出来。星图的「来源」行全靠它，
       // 少了它所有点都判成「私聊/系统」，五行塌成最底一行。
       projectLabel: n.projectLabel || '',
-      // 2026-11-07 13:49：room 也要带（'group:<group-a>' / 'private:xxx'）——
+      // 2026-11-07 13:49：room 也要带（'group:<群号>' / 'private:<号>'）——
       // projectLabel 是项目短名（ming / DSH 杂项），分不出是哪个群；来源只能看 room。
       room: n.room || '',
       people: n.subjectId ? [n.subjectId] : [],

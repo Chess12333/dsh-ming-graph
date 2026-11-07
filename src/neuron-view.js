@@ -169,17 +169,24 @@
     // 前 4 个占 72%，按它分行必然塌成一条带。数据里唯一分布均匀的维度是**来源**，
     // 所以压成 5 类：两个大群 + 浅水区 + 其他群 + 私聊/系统。
     // 横轴按「天」分桶，同一天的点叠在一列里——重叠处自然变亮，就是热力的效果。
-    const ROWS = ['深水区', '巅峰之战', '浅水区', '其他群', '私聊', '系统']
+    // 2026-11-07 22:1x：群号不进仓库（这个仓是公开的）。行名和归属由本机配置下发——
+    // panel 把 /neurons 返回里的 roomLabels 挂到 window.__MING_ROOMS。
+    // 没配就只剩「其他群/私聊/系统」三行，布局照旧，不崩。
+    const ROOM_MAP = (typeof window !== 'undefined' && window.__MING_ROOMS) || {}
+    const ROOM_ROWS = Object.keys(ROOM_MAP)
+      .filter((k) => k.startsWith('group:'))
+      .slice(0, 3)
+      .map((k) => ({ key: k, label: String(ROOM_MAP[k] || '').replace(/^群\s*·\s*/, '') || '群' }))
+    const ROWS = ROOM_ROWS.map((r) => r.label).concat(['其他群', '私聊', '系统'])
     const rowOf = new Map(ROWS.map((r, i) => [r, i]))
     const rowY = (i) => (ROWS.length <= 1 ? 0 : -1 + (i / (ROWS.length - 1)) * 2)
-    // 2026-11-07 13:49：来源只能看 room（'group:<group-a>' 这种）。
+    // 2026-11-07 13:49：来源只能看 room（'group:<id>' 这种）。
     // projectLabel 是项目短名（ming / DSH 杂项），分不出是哪个群——用它分五行，
     // 1001 条全落进「私聊/系统」，又是一条底带。这次先量过字段值才写。
     const rowKey = (n) => {
       const room = String(n.room || '')
-      if (room.includes('<group-a>')) return '深水区'
-      if (room.includes('<group-b>')) return '巅峰之战'
-      if (room.includes('<group-c>')) return '浅水区'
+      const hit = ROOM_ROWS.find((r) => r.key === room)
+      if (hit) return hit.label
       if (room.startsWith('group')) return '其他群'
       if (room.startsWith('private')) return '私聊'
       return '系统'

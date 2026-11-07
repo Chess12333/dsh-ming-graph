@@ -11,8 +11,10 @@ import { fileURLToPath } from 'node:url'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const read = (p) => fs.readFile(path.join(here, p), 'utf8')
 
+const theme = await read('src/theme.js')
 const view = await read('src/neuron-view.js')
 const star = await read('src/star-view.js')
+const panels = await read('src/panels.js')
 const panel = await read('src/panel.js')
 
 const banner = `/**
@@ -35,6 +37,6 @@ window.__ModuleLoader__.load({
 
 `
 
-const out = banner + view + '\n\n' + star + '\n\n' + panel + '\n  },\n})\n'
+const out = banner + theme + '\n\n' + view + '\n\n' + star + '\n\n' + panels + '\n\n' + panel + '\n  },\n})\n'
 await fs.writeFile(path.join(here, 'client.js'), out, 'utf8')
 console.log('client.js 写好：', out.length, '字节')
