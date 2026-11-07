@@ -130,6 +130,16 @@ people-merge.mjs  按号码合并人
 build.mjs         打包
 ```
 
+## 开发约定：推送前过闸
+
+仓库里带了一个 pre-push 钩子（`.githooks/pre-push`），拦三样东西：本机号码/路径、`.html`、超过 1 MB 的文件。
+
+```sh
+git config core.hooksPath .githooks   # 每个 clone 跑一次
+```
+
+为什么要有它：这个插件最早一版把使用者的 QQ 号、群号和两个内嵌整图数据的预览页一起推了上去，后来改写过一次历史。钩子是为了让「下次」不会再犯。
+
 ## License
 
 MIT
