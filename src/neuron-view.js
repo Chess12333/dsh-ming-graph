@@ -1146,6 +1146,8 @@
         const hit = pick(e.clientX - rect.left, e.clientY - rect.top)
         selected = hit
         renderSide()
+        // 2026-11-07 22:2x：选中报给面板——三个视图共用一个选中态，点了个点切到记忆 tab 能对上。
+        if (opts.onSelect) { try { opts.onSelect(hit ? hit.id : '') } catch (err) {} }
       }
       dragging = false
       stage.dataset.drag = '0'
@@ -1195,7 +1197,13 @@
         }
         host.innerHTML = ''
       },
-      select(id) { selected = id; renderSide(); draw() },
+      // 2026-11-07 22:2x：selected 存的是**节点对象**，不是 id——老实现直接把传进来的
+      // id 赋进去，renderSide 会拿字符串当节点用。改成按 id 找节点，找不到就清空。
+      select(id) {
+        const n = id ? nodes.find((x) => x.id === id) : null
+        selected = n || null
+        renderSide(); draw()
+      },
       plane(id) { openPlane(id) },
       // ---- top 栏（2026-11-07）：面板外壳通过这三个口子驱动视图，不直接碰内部状态 ----
       setQuery(q) { search.value = String(q || ''); search.dispatchEvent(new Event('input')) },

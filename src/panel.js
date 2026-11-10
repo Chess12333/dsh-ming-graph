@@ -1,263 +1,44 @@
-/**
- * panel.js —— DSH 面板外壳（React 只做两件事：顶部操作栏 + 把 neuron-view 挂进一个 div）
- *
- * 画图、交互、点开看正文全在 neuron-view.js 里，那边不依赖 React。
- * 这样同一份代码既能跑在面板里，也能直接丢进一个空 HTML 对 JSON 预览 ——
- * 「预览好看、面板难看」这种事，就是因为两边跑的不是同一份代码。
- *
- * 2026-11-07：顶部加一条 top 栏（她定的入口，先做布局和入口，不发明新样式）：
- *   视图切换（神经元 / 星图）· 搜索节点 · 筛选关系类型 · 导出 · 刷新。
- *   搜索和筛选不是面板自己过滤，是调 neuron-view 暴露的 setQuery / setWayFilter——
- *   数据只有一份，过滤只在渲染层做。
- */
+// ---- 外部页签宿主（2026-11-10 搬家）----
+// 原来建在面板的 useEffect 里：没打开过「她的一生」，宿主就不存在，想挂进来的插件只能退回设置页。
+// 现在建在模块级、由 apply 时安装，跟面板开没开无关。
+//   window.__MING_TAB_HOST = { add(desc), remove(id), list() }
+//   window.__MING_TABS_PENDING = []   ← 早到的先排队，install 时一起收
+//   desc = { id, label, order?, render }
+const MING_EXT_TABS = []
+const MING_EXT_SUBS = new Set()
 
-// 2026-11-07 21:23：版本号改成「构建那一刻」——它就是判据：面板上印的时间对不上，
-// 说明浏览器拿的还是旧 bundle（今天为此白改过两次）。
-const MG_VERSION = '2026-11-07 22:11'
-
-// 侧栏那个名字（2026-11-07 22:0x 她说的）：自己用叫「她的一生」，对外发布要另一个名字，
-// 两者不该靠改代码切换——写死一个，发布前改一遍、自己用又改回来，迟早漏。
-// 默认「她的一生」；发布版在页面里先注入 `window.__MING_GRAPH_LABEL = '...'` 即可覆盖。
-const PANEL_LABEL = (typeof window !== 'undefined' && window.__MING_GRAPH_LABEL) || '她的一生'
-const API = '/_dsh/dsh-ming-graph'
-if (typeof window !== 'undefined' && !window.__MG_ERR_HOOK) {
-  window.__MG_ERR_HOOK = 1
-  window.__MG_ERR = ''
-  window.addEventListener('error', (e) => {
-    window.__MG_ERR = String((e && e.message) || '') + ' / ' + String((e && e.error && e.error.stack) || '')
-  })
-  window.addEventListener('unhandledrejection', (e) => {
-    window.__MG_ERR = 'promise: ' + String((e && e.reason && (e.reason.stack || e.reason.message)) || e.reason || '')
-  })
+function mingExtEmit() {
+  const snap = MING_EXT_TABS.slice()
+  MING_EXT_SUBS.forEach((fn) => { try { fn(snap) } catch (e) { /* 一个订阅者坏了不影响别的 */ } })
 }
 
-const PAGE_CSS = `
-.mg-mount{height:100%;min-height:480px;display:flex;flex-direction:column;position:relative}
-.mg-holder{flex:1;min-height:420px;display:flex;flex-direction:column}
-.mg-msg{display:flex;align-items:center;justify-content:center;height:100%;color:var(--dsw-alias-label-tertiary);font-size:13px;padding:20px;text-align:center;line-height:20px}
-.mg-msg.err{color:var(--dsw-alias-state-error-primary)}
-.mg-bar{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--dsw-alias-separator-secondary);font-size:12px;color:var(--dsw-alias-label-tertiary)}
-.mg-bar .mg-meta{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mg-btn{appearance:none;border:1px solid var(--dsw-alias-separator-secondary);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer}
-.mg-btn:hover:not(:disabled){color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary)}
-.mg-btn:disabled{opacity:.5;cursor:default}
-/* ---- top 栏（2026-11-07） ---- */
-.mg-top{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:7px 12px;border-bottom:1px solid var(--dsw-alias-separator-secondary)}
-.mg-brand{display:inline-flex;align-items:baseline;gap:7px;margin-right:8px;font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--dsw-alias-label-primary);white-space:nowrap}
-.mg-brand i{font-style:normal;font-size:10px;font-weight:400;letter-spacing:.08em;color:var(--dsw-alias-label-secondary);opacity:.7}
-.mg-seg{display:inline-flex;border:1px solid var(--dsw-alias-separator-secondary);border-radius:6px;overflow:hidden}
-.mg-seg button{appearance:none;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font-size:12px;padding:3px 10px;cursor:pointer}
-.mg-seg button.on{background:var(--dsw-alias-bg-hover, rgba(127,127,127,.14));color:var(--dsw-alias-label-primary)}
-.mg-input{appearance:none;border:1px solid var(--dsw-alias-separator-secondary);background:transparent;color:var(--dsw-alias-label-primary);
-  border-radius:6px;padding:3px 9px;font-size:12px;min-width:180px;outline:none}
-.mg-input:focus{border-color:var(--dsw-alias-label-secondary)}
-.mg-chip{appearance:none;border:1px solid var(--dsw-alias-separator-secondary);background:transparent;color:var(--dsw-alias-label-tertiary);
-  border-radius:999px;padding:2px 9px;font-size:11.5px;cursor:pointer}
-.mg-chip.on{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-hover, rgba(127,127,127,.10))}
-.mg-gap{flex:1}
-/* 2026-11-07 13:51：DOM 网格（不用 canvas） */
-.mg-gridwrap{flex:1;min-height:0;overflow:auto;padding:18px 20px 12px}
-.mg-grid{display:grid;row-gap:6px;column-gap:3px}
-.mg-rl{font-size:11.5px;color:var(--dsw-alias-label-secondary);text-align:right;padding-right:10px;white-space:nowrap;font-variant-numeric:tabular-nums}
-.mg-rl b{color:var(--dsw-alias-label-primary);font-weight:600;margin-left:5px}
-.mg-cell{height:26px;border-radius:6px;transition:transform .08s ease}
-.mg-cell:hover{transform:scale(1.18);outline:1px solid var(--dsw-alias-label-secondary);outline-offset:1px}
-.mg-xaxis{margin-top:8px}
-.mg-xt{font-size:10px;color:var(--dsw-alias-label-tertiary);text-align:center;white-space:nowrap;overflow:hidden;opacity:.75}
-.mg-legend{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dsw-alias-label-tertiary);margin-top:12px}
-.mg-lg{width:15px;height:11px;border-radius:3px}
-.mg-note{display:flex;align-items:center;justify-content:center;height:100%;color:var(--dsw-alias-label-tertiary);font-size:13px;
-  padding:24px;text-align:center;line-height:22px;white-space:pre-wrap}
-/* ================= 2026-11-07 19:3x 动画与可读性 =================
-   她说「给整个界面加动画过渡、更好地可读交互」。
-   原则：动的是「出现/切换」，不动位置；一个动画不超过 200ms，不做循环。 */
-@keyframes mgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-@keyframes mgPop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
-.mg-holder>.ming-panel,.mg-holder>.svx-root{animation:mgIn .18s ease both}
-.ming-panel{font-size:13.5px;line-height:1.72}
-.ming-card{transition:border-color .15s ease,box-shadow .15s ease}
-.ming-card:hover{border-color:var(--dsw-alias-border-l3)}
-.ming-row{padding:6px 6px;border-radius:6px;transition:background .12s ease,transform .06s ease}
-.ming-row:hover{background:var(--dsw-alias-bg-hover,rgba(127,127,127,.08))}
-.ming-row:active{transform:scale(.997)}
-.ming-btn,.mg-btn,.mg-chip,.mg-seg button{transition:color .12s ease,border-color .12s ease,background .12s ease,transform .06s ease}
-.ming-btn:active,.mg-btn:active,.mg-chip:active{transform:scale(.96)}
-.mg-seg button{position:relative}
-.mg-seg button.on::after{content:'';position:absolute;left:10px;right:10px;bottom:1px;height:1.5px;background:currentColor;border-radius:2px;animation:mgIn .16s ease both}
-.ming-sub{font-size:12px;color:var(--dsw-alias-label-secondary)}
-.ming-kpi{font-variant-numeric:tabular-nums}
-.ming-scroll{scrollbar-width:thin;scrollbar-color:rgba(127,127,127,.28) transparent}
-.ming-scroll::-webkit-scrollbar{width:9px;height:9px}
-.ming-scroll::-webkit-scrollbar-thumb{background:rgba(127,127,127,.22);border-radius:5px;border:2px solid transparent;background-clip:content-box}
-.ming-scroll::-webkit-scrollbar-thumb:hover{background:rgba(127,127,127,.42);background-clip:content-box}
-.ming-scroll::-webkit-scrollbar-track{background:transparent}
-.mg-zoom{_:_}
-.mg-zoom img{animation:mgPop .16s ease both}
-`
-
-
-// ---------------- 侧栏图标 ----------------
-// sidebar.panellist 只问「图标长什么样」：owner props = { size, active }
-function GraphIcon(props) {
-  const s = props && typeof props.size === 'number' ? props.size : 20
-  const on = !!(props && props.active)
-  const color = on ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-secondary)'
-  return h('svg', {
-    width: s, height: s, viewBox: '0 0 20 20', fill: 'none',
-    stroke: color, strokeWidth: 1.3, strokeLinecap: 'round',
-    'aria-hidden': 'true', focusable: 'false',
-  },
-    h('line', { x1: 10, y1: 5.6, x2: 4.8, y2: 13.2 }),
-    h('line', { x1: 10, y1: 5.6, x2: 15.2, y2: 13.2 }),
-    h('line', { x1: 4.8, y1: 13.2, x2: 15.2, y2: 13.2, opacity: 0.5 }),
-    h('circle', { cx: 10, cy: 5.6, r: 2.5, fill: color, stroke: 'none' }),
-    h('circle', { cx: 4.8, cy: 13.2, r: 1.9, fill: color, stroke: 'none' }),
-    h('circle', { cx: 15.2, cy: 13.2, r: 1.9, fill: color, stroke: 'none' }),
-  )
+function mingExtAdd(d) {
+  if (!d || !d.id) return
+  const i = MING_EXT_TABS.findIndex((x) => x.id === d.id)
+  if (i >= 0) MING_EXT_TABS[i] = d
+  else MING_EXT_TABS.push(d)
+  MING_EXT_TABS.sort((a, b) => (a.order || 100) - (b.order || 100))
+  mingExtEmit()
 }
 
-// 边类型：跟 Host 的 e.kind 一一对应（ref / cokey / project / adjacent / subject）
-const WAYS = ['引用', '共词', '归属', '补边', '主语']
-
-// ---- 记忆库视图（2026-11-07） ----
-// 她说：有图就别再另开一个侧栏图标，记忆就在这张图顶上开一格。
-// 数据走 dsh-ming-memory 的只读路由，跟图没关系——一个列旧账，一个看形状。
-const MEMORY_API = '/_dsh/dsh-ming-memory'
-
-function fmtClock(ms) {
-  if (!ms) return ''
-  const d = new Date(ms)
-  const p = (n) => String(n).padStart(2, '0')
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes())
+function mingExtRemove(id) {
+  const i = MING_EXT_TABS.findIndex((x) => x.id === id)
+  if (i < 0) return
+  MING_EXT_TABS.splice(i, 1)
+  mingExtEmit()
 }
 
-// 2026-11-07 19:0x：记忆 tab 改成吃**统一节点模型**（/_dsh/dsh-ming-graph/neurons/unified），
-// 不再依赖 dsh-ming-memory 的 /list——那个插件的 Host 半端一直没能加载（exports 里没有 "."），
-// 每次打开都是 △ HTTP 404。图这边本来就把 notes 全读进来了，章也在里面，不用再绕一圈。
-function MemoryView(props) {
-  const q = (props && props.q) || ''
-  // 2026-11-07 21:4x：选中态穿过视图。外面（星图、搜索）选中了哪条，这里跟着展开；
-  // 这里点开一条，也报回上层——切回星图时对着同一颗星。之前三个视图各管各的。
-  const selId = (props && props.selId) || ''
-  const [items, setItems] = useState([])
-  const [err, setErr] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [openId, setOpenId] = useState('')
-  const [chap, setChap] = useState('')
-
-  const load = useCallback(() => {
-    setBusy(true)
-    setErr('')
-    return fetch('/_dsh/dsh-ming-graph/neurons/unified', { cache: 'no-store' })
-      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
-      .then((d) => {
-        if (d && d.error) { setErr(String(d.error)); return }
-        const rows = (d.nodes || [])
-          .filter((n) => n.kind === 'memory')
-          .map((n) => ({
-            id: n.id,
-            title: n.title || n.id,
-            body: n.body || n.excerpt || '',
-            date: n.date || '',
-            at: n.at || 0,
-            tags: (n.tags || []).join(' '),
-            source: n.source || '',
-            chapter: n.chapter || 0,
-            chapterName: n.chapterName || '',
-          }))
-          .sort((a, b) => (b.at || 0) - (a.at || 0))
-        setItems(rows)
-        if (props && props.onData) props.onData({ items: rows, total: rows.length })
-      })
-      .catch((e) => setErr(String((e && e.message) || e)))
-      .finally(() => setBusy(false))
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  useEffect(() => {
-    if (!selId) return
-    if (items.some((x) => x.id === selId)) setOpenId(selId)
-  }, [selId, items])
-
-  const kw = q.trim().toLowerCase()
-  const shown = items
-    .filter((it) => (!kw ? true : (it.id + ' ' + it.title + ' ' + it.tags + ' ' + it.source).toLowerCase().indexOf(kw) >= 0))
-    .filter((it) => {
-      if (!chap) return true
-      if (chap === 'none') return !it.chapter
-      return String(it.chapter) === chap
-    })
-
-  const opened = openId ? items.find((x) => x.id === openId) : null
-  if (opened) {
-    return h('div', { className: 'ming-panel' },
-      h('div', { className: 'ming-head' },
-        h('button', { className: 'ming-btn', onClick: () => setOpenId('') }, '← 返回'),
-        h('span', { className: 'ming-title', style: { fontSize: 13 } }, opened.title),
-        opened.chapter ? h('span', { className: 'ming-pill' }, '第' + opened.chapter + '章') : null,
-        h('span', { className: 'ming-sub', style: { marginLeft: 'auto' } }, opened.date),
-      ),
-      h('div', { className: 'ming-body ming-scroll' },
-        h('div', {
-          className: 'ming-card',
-          style: { whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13.5, lineHeight: 1.85, letterSpacing: '.01em' },
-        }, opened.body || '（这条没有正文）'),
-      ),
-    )
-  }
-
-  return h('div', { className: 'ming-panel' },
-    h('div', { className: 'ming-head' },
-      h('span', { className: 'ming-sub' }, busy ? '读取中…' : items.length + ' 条记忆'),
-      h('button', { className: 'ming-btn', style: { marginLeft: 'auto' }, onClick: load }, '刷新'),
-    ),
-    h('div', { className: 'ming-body ming-scroll' },
-      err ? h('div', { className: 'ming-empty' }, '△ ' + err) : null,
-      // 按章筛选：八章 + 未分章
-      items.length ? h('div', { style: { display: 'flex', gap: 5, flexWrap: 'wrap', padding: '2px 0 8px' } },
-        ['', '1', '2', '3', '4', '5', '6', '7', '8', 'none'].map((c) => {
-          const hit = items.find((x) => String(x.chapter) === c)
-          const label = c === '' ? '全部' : c === 'none' ? '未分章' : ((hit && hit.chapterName) || ('第' + c + '章'))
-          return h('button', {
-            key: c || 'all',
-            className: 'mg-chip' + (chap === c ? ' on' : ''),
-            onClick: () => setChap(c),
-          }, label)
-        }),
-      ) : null,
-      (!err && shown.length === 0) ? h('div', { className: 'ming-empty' }, busy ? '…' : '没有匹配的记忆') : null,
-      h('div', null, shown.map((it) => h('div', {
-        key: it.id,
-        className: 'ming-row',
-        style: { cursor: 'pointer' },
-        onClick: () => { setOpenId(it.id); if (props.onSelect) props.onSelect(it.id) },
-        title: it.id,
-      },
-        h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, it.title),
-        it.chapter ? h('span', { className: 'ming-pill' }, '第' + it.chapter + '章') : null,
-        h('span', { className: 'ming-sub' }, it.date || ''),
-      ))),
-    ),
-  )
+function mingExtSubscribe(fn) {
+  MING_EXT_SUBS.add(fn)
+  fn(MING_EXT_TABS.slice())
+  return () => { MING_EXT_SUBS.delete(fn) }
 }
 
-// 2026-11-07 16:30 加、19:1x 补回（做记忆 tab 替换时被一并切掉了，于是面板一崩就整块黑）。
-class PanelBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { err: '' } }
-  static getDerivedStateFromError(e) { return { err: String((e && e.stack) || e) } }
-  componentDidCatch(e) {
-    try {
-      this.setState({ err: String((e && e.stack) || e) + ' / 最近一条全局错误：' + String(window.__MG_ERR || '(无)') })
-    } catch (x) {}
-  }
-  render() {
-    if (this.state.err) {
-      return h('div', { style: { padding: '14px 18px', fontFamily: 'ui-monospace, Consolas, monospace', fontSize: '12px', lineHeight: '18px', whiteSpace: 'pre-wrap', color: 'var(--dsw-alias-state-error-primary)', overflow: 'auto', height: '100%' } },
-        '家底崩了（v' + MG_VERSION + '）：' + this.state.err)
-    }
-    return this.props.children
-  }
+function mingExtInstall() {
+  if (typeof window === 'undefined') return
+  window.__MING_TAB_HOST = { add: mingExtAdd, remove: mingExtRemove, list: () => MING_EXT_TABS.slice() }
+  const q = window.__MING_TABS_PENDING
+  if (Array.isArray(q) && q.length) q.splice(0).forEach(mingExtAdd)
 }
 
 function NeuronPanel() {
@@ -284,6 +65,125 @@ function NeuronPanel() {
   const [starInfo, setStarInfo] = useState('')
   const [starData, setStarData] = useState(null)
 
+  // 2026-11-08：top 栏两件事的状态。pop 是哪个浮层开着（'' / 'skill' / 'cost'）。
+  const [pop, setPop] = useState('')
+  // 2026-11-08：桌宠设置（鼠标显示 / 大小 / 模式）。数据来自 dsh-ming-mousepet 的设置口。
+  const [petCfg, setPetCfg] = useState(null)
+  const [petBusy, setPetBusy] = useState(false)
+  const [skills, setSkills] = useState(null)
+  const [skillQ, setSkillQ] = useState('')
+  const [skillBusy, setSkillBusy] = useState('')
+  const [cost, setCost] = useState(null)
+  // 完整版检测（2026-11-10）：单独装这个插件时，顶栏下面挂一条「完整版在 Hers_Life」
+  const [solo, setSolo] = useState(false)
+  useEffect(() => {
+    fetch('/dsh-ming-mousepet/api/pet-status', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) setSolo(true) })
+      .catch(() => setSolo(true))
+  }, [])
+  const [costErr, setCostErr] = useState('')
+  // 2026-11-10：「索引费用」——点一下，没定价的模型去网上找价（Host 那边做，见 price-index.mjs）
+  const [costIdxBusy, setCostIdxBusy] = useState(false)
+  const [costIdxInfo, setCostIdxInfo] = useState(null)
+
+  // ---- 外部页签：订阅模块级的那份清单（2026-11-10 改）----
+  // 上一版把宿主建在这里的 useEffect 里，结果「没打开过她的一生」时它根本不存在，
+  // 想挂进来的插件只能退回设置页。现在宿主在插件 apply 时就建好（见文件末尾 mingExtInstall）。
+  const [extTabs, setExtTabs] = useState(() => MING_EXT_TABS.slice())
+  useEffect(() => mingExtSubscribe(setExtTabs), [])
+
+  const loadSkills = useCallback((force) => {
+    return fetch(API + '/skills' + (force ? '/refresh' : ''), { cache: 'no-store' })
+      .then((r) => {
+        // 404 不是「没装」——是宿主那半边还是旧代码（新路由要有重启才注册）。
+        // 这两件事分清楚，不然她看到「读不到」只会以为又坏了。
+        if (r.status === 404) throw new Error('宿主还是旧版：dsh-ming-graph 的 skills 路由还没注册，重启 DSH 就有了')
+        if (!r.ok) throw new Error('HTTP ' + r.status)
+        return r.json()
+      })
+      .then((d) => setSkills(d && typeof d === 'object' ? d : { ok: false, error: '响应不是对象' }))
+      .catch((e) => setSkills({ ok: false, error: String((e && e.message) || e) }))
+  }, [])
+
+  const loadPet = useCallback(() => {
+    return fetch('/dsh-ming-mousepet/api/settings', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => { setPetCfg(d && d.settings ? d.settings : null); return d })
+      .catch(() => { setPetCfg(null); return null })
+  }, [])
+
+  const petSet = useCallback((patch) => {
+    setPetBusy(true)
+    return fetch('/dsh-ming-mousepet/api/settings', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, cache: 'no-store',
+      body: JSON.stringify(patch),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (d && d.settings) setPetCfg(d.settings); return d })
+      .catch(() => null)
+      .finally(() => setPetBusy(false))
+  }, [])
+
+  const petShow = useCallback((on) => {
+    return fetch('/dsh-ming-mousepet/api/' + (on ? 'show' : 'hide'), { method: 'POST', cache: 'no-store' })
+      .then((r) => r.json())
+      .catch(() => null)
+  }, [])
+
+  const loadCost = useCallback(() => {
+    // 2026-11-08 16:1x：不再读那个插件的 getUsageSummary —— 它的账本有 token 没价
+    // （价目表里没有 deepseek-v4.1-flash 这个写法），返回不出数。改成读我们自己的 /cost，
+    // 价目表是 live/cost-prices.json，算法在 cost-lib.mjs。
+    return fetch(API + '/cost', {
+      cache: 'no-store',
+    })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => { setCost(d || null); setCostErr(d ? '' : '账本没给数（模型/账户还没解析出来）') })
+      .catch((e) => setCostErr(String((e && e.message) || e)))
+  }, [])
+
+  // 2026-11-10：点「索引费用」——Host 去给未定价的模型搜价，回来顺手把新账塞进 state，
+  // 不用再拉一次 /cost（那条要扫七万行 sqlite）。
+  const indexCost = useCallback(() => {
+    setCostIdxBusy(true)
+    setCostIdxInfo(null)
+    return fetch(API + '/cost/index', { method: 'POST', cache: 'no-store' })
+      .then((r) => {
+        if (r.status === 404) throw new Error('宿主还是旧版：cost/index 路由还没注册，重启 DSH 就有了')
+        if (!r.ok) throw new Error('HTTP ' + r.status)
+        return r.json()
+      })
+      .then((d) => {
+        setCostIdxInfo(d && typeof d === 'object' ? d : { ok: false, error: '响应不是对象' })
+        if (d && d.cost) { setCost(d.cost); setCostErr('') }
+      })
+      .catch((e) => setCostIdxInfo({ ok: false, error: String((e && e.message) || e) }))
+      .finally(() => setCostIdxBusy(false))
+  }, [])
+
+  function toggleSkill(name, on) {    setSkillBusy(name)
+    fetch(API + '/skills/toggle?name=' + encodeURIComponent(name) + '&on=' + (on ? '1' : '0'), { method: 'POST', cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then((d) => {
+        if (d && d.ok) setSkills(d)
+        else setSkills((s) => ({ ...(s || {}), ok: false, error: (d && d.error) || '写不进去' }))
+      })
+      .catch((e) => setSkills((s) => ({ ...(s || {}), ok: false, error: String((e && e.message) || e) })))
+      .finally(() => setSkillBusy(''))
+  }
+
+  // 2026-11-08 15:27：切到「费用」页就拉一次，别等两分钟轮询。
+  useEffect(() => { if (view === 'cost') loadCost() }, [view, loadCost])
+
+  useEffect(() => {
+    // 清单进面板就拉一次（很便宜：一次文件读 + 一次服务调用）；费用两分钟一次，
+    // 比下面那条 60 秒的账本轮询低频——面板不是账单页，看个大概就够。
+    loadSkills(false)
+    loadCost()
+    const t = setInterval(loadCost, 120000)
+    return () => clearInterval(t)
+  }, [])
+
   // force=false 走缓存；force=true 走 /neurons/refresh（Host 重读文件、重新加载 neuron.js）
   const load = useCallback((force) => {
     setBusy(true)
@@ -296,7 +196,9 @@ function NeuronPanel() {
         if (d && d.error) { setErr(String(d.error)); setStatus('error'); return }
         if (!window.__MingNeuronView) { setErr('渲染层没装上（neuron-view 未加载）'); setStatus('error'); return }
         if (viewRef.current && viewRef.current.destroy) viewRef.current.destroy()
-        viewRef.current = window.__MingNeuronView.mount(holder.current, d, {})
+        // 2026-11-07 22:2x：选中态穿过三个视图——神经元点一个点，切到星图/记忆能对上同一条。
+        viewRef.current = window.__MingNeuronView.mount(holder.current, d, { onSelect: setSelId })
+        if (selRef.current && viewRef.current.select) { try { viewRef.current.select(selRef.current) } catch (e) {} }
         setStatus('ready')
         setErr('')
         setInfo({
@@ -416,6 +318,10 @@ function NeuronPanel() {
 
   return h('div', { className: 'mg-mount' },
     h('style', null, PAGE_CSS + MING_UI.css('ming')),
+    solo ? h('div', { style: { margin: '0 14px 8px', padding: '7px 12px', border: '1px solid rgba(217,164,65,.45)', borderRadius: '8px', fontSize: '11.5px', lineHeight: '1.7', color: 'var(--dsw-alias-label-secondary, #b8b8c4)' } },
+      '这是单独安装的版本。完整版在 ',
+      h('a', { href: 'https://github.com/Chess12333/Hers_Life', target: '_blank', rel: 'noreferrer', style: { color: 'var(--dsw-alias-brand-primary, #6aa9ff)' } }, 'Hers_Life'),
+      ' 更新。') : null,
 
     // ---- top 栏：全局操作 ----
     h('div', { className: 'mg-top' },
@@ -425,60 +331,102 @@ function NeuronPanel() {
       // tab 分两组：竖线左边是记下来的，右边是我干活用的。
       h('div', { className: 'mg-seg' },
         [['neuron', '神经元'], ['star', '星图'], ['memory', '记忆'], ['|'],
-          ['browse', '自己玩'], ['interest', '兴趣'], ['voice', '声音'], ['desktop', '桌面'], ['resume', '接续']]
+          ['browse', '自己玩'], ['interest', '兴趣'], ['voice', '声音'],
+          // 2026-11-10 她定的：「桌宠也去掉吧，就保留光标就可以了」。
+          // 桌宠那页是本机专用的，光标页才是"谁装谁有"的那一个——自己用和发出去要同一套。
+          ['cost', '费用'], ['|']]
+          // 2026-11-08 03:4x：桌面 tab 一起去掉。它的数据来自 /_dsh/dsh-ming-desktop，
+          //   那个插件 11-08 被 mousepet 取代后停用，接口实测 404，点开是一格空的。
           .map(([k, label]) => k === '|'
             ? h('span', { key: 'sep', style: { width: 1, height: 18, background: 'var(--dsw-alias-border-secondary, rgba(150,150,170,.28))', margin: '0 4px', alignSelf: 'center' } })
-            : h('button', { key: k, className: view === k ? 'on' : '', onClick: () => setView(k) }, label)),
+            : h('button', { key: k, className: view === k ? 'on' : '', onClick: () => setView(k) }, label))
+          // 外部页签（2026-11-09）：别的插件挂进来的，接在内置 tab 之后，靠 order 排。
+          .concat(extTabs.map((t) => h('button', {
+            key: 'ext-' + t.id,
+            className: view === 'ext:' + t.id ? 'on' : '',
+            title: t.title || '',
+            onClick: () => setView('ext:' + t.id),
+          }, t.label || t.id))),
+        // 2026-11-08 15:27：费用改成独立页（view='cost'），不再是浮层。
       ),
-      // 2026-11-07 15:0x：搜索三个视图共用——神经元过滤节点、星图定位一颗星、记忆过滤列表。
-      h('input', {
-        className: 'mg-input',
-        placeholder: view === 'memory' ? '按 id / 标签 / 来源过滤' : (view === 'star' ? '找一颗星：标题或正文里的词'
-          : view === 'neuron' ? '搜标题 / 正文里的词' : '（这个视图不用搜）'),
-        disabled: view === 'browse' || view === 'interest' || view === 'voice' || view === 'desktop' || view === 'resume',
-        value: q,
-        onChange: (e) => setQ(e.target.value),
-      }),
-      view === 'neuron' ? h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
-        WAYS.map((t) => h('button', {
-          key: t,
-          className: 'mg-chip' + (ways.indexOf(t) >= 0 ? ' on' : ''),
-          disabled: status !== 'ready',
-          title: '关掉这一类边，节点不删',
-          onClick: () => toggleWay(t),
-        }, t)),
-      ) : null,
       h('span', { className: 'mg-gap' }),
+      // 2026-11-08：skill 开关（关掉的不进系统提示词，按工作区生效）
       h('button', {
-        className: 'mg-btn',
-        disabled: view === 'neuron' ? status !== 'ready' : (view === 'star' ? starState !== 'ready' : false),
-        onClick: exportJson,
-        title: view === 'memory' ? '导出当前这份归档列表' : (view === 'star' ? '导出统一节点模型' : '把这整份图导出成 JSON'),
-      }, '导出'),
-      h('button', {
-        className: 'mg-btn',
-        disabled: busy,
-        title: '重读数据源（神经元顺带重新加载建图代码）',
-        onClick: refreshAll,
-      }, busy ? '刷新中…' : '刷新'),
+        className: 'mg-btn' + (pop === 'skill' ? ' on' : ''),
+        title: '按工作区开关 skill：关掉的不再进系统提示词，文件不动',
+        onClick: () => { const next = pop === 'skill' ? '' : 'skill'; setPop(next); if (next) loadSkills(false) },
+      }, skills && skills.total
+        ? 'skill ' + (skills.total - (skills.offCount || 0)) + '/' + skills.total
+        : (skills && skills.ok === false ? 'skill 读不到' : 'skill')),
     ),
 
-    // ---- 第二行：状态（切到星图时也用它报状态，免得"点了没反应"看不出是卡在哪） ----
-    h('div', { className: 'mg-bar' },
-      h('span', { className: 'mg-meta' },
-        view === 'browse' ? '自己玩 · 什么时候醒，看什么，记了什么'
-          : view === 'interest' ? '兴趣 · 叫不叫得醒，还有为什么'
-            : view === 'voice' ? '声音 · 合出来的 mp3，点 ▶ 试听'
-              : view === 'desktop' ? '桌面 · 这只手最近看见的和说出来的'
-                : view === 'resume' ? '接续 · 现在在做哪件事，被打断过几次'
-              : view === 'memory'
-          ? '记忆库 · 只读，点一行看正文'
-          : view === 'neuron'
-            ? (status === 'ready' ? meta : '')
-            : (starState === 'error' ? '星图读不到：' + starErr
-              : starState === 'ready' ? ('星图 · ' + (starInfo || '已加载'))
-                : '星图 · 正在拼统一节点模型…')),
-    ),
+    // ---- 2026-11-08 15:5x：这三个视图自己画布、没有子页头，所以壳这边给一个 ----
+    // 她说的「至少要分清哪一块是哪一块」——原来这里只有一行灰色小字，跟下面的画布糊在一起。
+    // 自己玩/兴趣/声音/桌宠/费用/接续各自已经有页头了，这里不重复。
+    (view === 'neuron' || view === 'star' || view === 'memory')
+      ? h('div', { className: 'ming-ph' },
+        h('div', { className: 'ming-ph-ic' },
+          h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6 },
+            view === 'neuron'
+              ? [h('circle', { key: 'a', cx: 6, cy: 7, r: 2 }), h('circle', { key: 'b', cx: 18, cy: 6, r: 2 }),
+                h('circle', { key: 'c', cx: 12, cy: 17, r: 2 }), h('path', { key: 'd', d: 'M8 8l8 2M7 9l4 6M17 8l-4 7' })]
+              : view === 'star'
+                ? [h('path', { key: 'a', d: 'M12 3l2.2 5.6L20 10l-5.8 1.4L12 17l-2.2-5.6L4 10l5.8-1.4z' }),
+                  h('path', { key: 'b', d: 'M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9z' })]
+                : [h('rect', { key: 'a', x: 4, y: 3, width: 16, height: 18, rx: 2 }),
+                  h('path', { key: 'b', d: 'M8 7h8M8 11h8M8 15h5' })]),
+        ),
+        h('div', { className: 'ming-ph-tx' },
+          h('div', { className: 'ming-ph-t' },
+            view === 'neuron' ? '神经元' : view === 'star' ? '星图' : '记忆'),
+          h('div', { className: 'ming-ph-d' },
+            view === 'memory' ? '只读，点一行看正文'
+              : view === 'neuron' ? (status === 'ready' ? meta : '正在读两侧记忆库…（第一次要扫一遍文件，大约两秒）')
+                : (starState === 'error' ? '读不到：' + starErr
+                  : starState === 'ready' ? ('统一节点模型 · ' + (starInfo || '已加载'))
+                    : '正在拼统一节点模型…')),
+        ),
+        h('div', { className: 'ming-ph-a' },
+          h('button', {
+            className: 'mg-btn',
+            disabled: view === 'neuron' ? status !== 'ready' : (view === 'star' ? starState !== 'ready' : false),
+            onClick: exportJson,
+            title: view === 'memory' ? '导出当前这份归档列表' : (view === 'star' ? '导出统一节点模型' : '把这整份图导出成 JSON'),
+          }, '导出'),
+          h('button', {
+            className: 'mg-btn',
+            disabled: busy,
+            title: '重读数据源（神经元顺带重新加载建图代码）',
+            onClick: refreshAll,
+          }, busy ? '刷新中…' : '刷新'),
+        ),
+      )
+      : null,
+
+    // ---- 工具条：搜索三个视图共用（神经元过滤节点 / 星图找一颗星 / 记忆过滤列表）；
+    //      关系类型只有神经元用得上。从 top 栏搬下来，免得一屏里全是控件。 ----
+    (view === 'neuron' || view === 'star' || view === 'memory')
+      ? h('div', { className: 'mg-tools' },
+        h('input', {
+          className: 'mg-input',
+          placeholder: view === 'memory' ? '按 id / 标签 / 来源过滤' : (view === 'star' ? '找一颗星：标题或正文里的词' : '搜标题 / 正文里的词'),
+          value: q,
+          onChange: (e) => setQ(e.target.value),
+        }),
+        view === 'neuron'
+          ? h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' } },
+            h('span', { className: 'mg-tools-l' }, '关系'),
+            WAYS.map((t) => h('button', {
+              key: t,
+              className: 'mg-chip' + (ways.indexOf(t) >= 0 ? ' on' : ''),
+              disabled: status !== 'ready',
+              title: '关掉这一类边，节点不删',
+              onClick: () => toggleWay(t),
+            }, t)),
+          )
+          : null,
+      )
+      : null,
 
     // 2026-11-07 12:37：报错 `Cannot set properties of null (setting 'innerHTML')`。
     // 根因：星图那个 div 是条件渲染的，effect 跑的那一瞬 ref 还是 null，mount 里 host.innerHTML 就炸在这。
@@ -497,12 +445,21 @@ function NeuronPanel() {
     h('div', { key: 'voice' + reloadTick, className: 'mg-holder', style: view === 'voice' ? null : { display: 'none' } },
       view === 'voice' ? h(VoicePanel) : null,
     ),
-    // 2026-11-07 19:1x 她说「还是别合并了」：桌面和接续各留一格。
-    h('div', { key: 'desktop' + reloadTick, className: 'mg-holder', style: view === 'desktop' ? null : { display: 'none' } },
-      view === 'desktop' ? h(DesktopPanel) : null,
+    // 2026-11-10 她定的：桌宠页拿掉，功能并进「光标」页（外部插件挂进来的那个）。
+    // 这里保留 PetPage 的定义和 import，别删——并回去的时候不用从头写。
+    // 2026-11-08 15:27 她：「费用也做成独立页而不是弹窗栏」。
+    h('div', { key: 'cost' + reloadTick, className: 'mg-holder', style: view === 'cost' ? null : { display: 'none' } },
+      view === 'cost' ? h(MgCostPage, {
+        data: cost, err: costErr, onReload: loadCost,
+        onIndex: indexCost, indexing: costIdxBusy, indexInfo: costIdxInfo,
+      }) : null,
     ),
     h('div', { key: 'resume' + reloadTick, className: 'mg-holder', style: view === 'resume' ? null : { display: 'none' } },
       view === 'resume' ? h(ResumePanel) : null,
+    ),
+    // 外部页签（2026-11-09）：所有挂进来的共用一个 holder，只渲染当前那一个。
+    h('div', { key: 'ext' + reloadTick, className: 'mg-holder', style: String(view).indexOf('ext:') === 0 ? null : { display: 'none' } },
+      extTabs.map((t) => (view === 'ext:' + t.id && typeof t.render === 'function' ? h(t.render, { key: t.id }) : null)),
     ),
 
     h('div', {
@@ -521,12 +478,171 @@ function NeuronPanel() {
 
     view === 'neuron' && status === 'loading' ? h('div', { className: 'mg-msg' }, '正在读两侧记忆库…（第一次要扫一遍文件，大约两秒）') : null,
     view === 'neuron' && status === 'error' ? h('div', { className: 'mg-msg err' }, '读不到：' + err) : null,
+
+    // 2026-11-08：两个 top 浮层。锚在 .mg-mount 上（它 position:relative），遮罩负责点外面关掉。
+    pop === 'skill' ? h(MgPop, {
+      key: 'pop-skill',
+      title: 'skill 开关',
+      sub: skills && skills.source === 'disk' ? '磁盘兜底（宿主的 skills 服务没接上）' : '',
+      onClose: () => setPop(''),
+    }, h(SkillsBody, {
+      data: skills,
+      q: skillQ,
+      busy: skillBusy,
+      onQ: setSkillQ,
+      onReload: () => loadSkills(true),
+      onToggle: toggleSkill,
+    })) : null,
+
   )
+}
+
+
+// ---------------------------------------------------------------------------
+// 设置页 · 身份与称呼（2026-11-10）
+//
+// 为什么放在这儿：原先挂在 dsh-ming-memory 的 client 上，靠它 apply 时 add，
+// 真机上那条路断了（inject 抛错 → 后面不执行）。改成「她的一生」自己的一页：
+// 组件就在本 bundle 里、apply 时同步 add，不赌别的插件加载顺序。
+// 数据走 memory 插件的 /_dsh/dsh-ming-memory/identity（GET 读、POST 写整份 json）。
+const IDENTITY_ROUTE = '/_dsh/dsh-ming-memory/identity'
+
+const ID_FIELDS = [
+  { key: 'selfName', label: '我自己叫什么', hint: '平时被叫的那个（昵称）', ph: '大肥鱼' },
+  { key: 'selfFullName', label: '全名', hint: '正式场合、生气的时候用', ph: '大肥鱼' },
+  { key: 'userName', label: '我该怎么叫你', hint: '它说话时会用这个称呼', ph: '主人' },
+  { key: 'qqName', label: 'QQ 那边的名字', hint: '留空就跟第一个一样', ph: '（留空）' },
+]
+
+function IdentityPanel() {
+  const [form, setForm] = useState(null)
+  const [onboarded, setOnboarded] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState('')
+  const [error, setError] = useState('')
+
+  const load = useCallback(() => {
+    setError('')
+    fetch(IDENTITY_ROUTE, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d || !d.ok) throw new Error((d && d.error) || '读不到')
+        setForm({
+          selfName: d.identity.selfName || '',
+          selfFullName: d.identity.selfFullName || '',
+          selfDesc: d.identity.selfDesc || '',
+          userName: d.identity.userName || '',
+          qqName: d.identity.qqName || '',
+          identity: d.identity.identity !== false,
+        })
+        setOnboarded(!!d.onboarded)
+      })
+      .catch((e) => setError('读不到设置：' + (e && e.message ? e.message : e)))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const save = useCallback((patch) => {
+    const next = Object.assign({}, form, patch || {})
+    setForm(next)
+    setBusy(true); setNote(''); setError('')
+    fetch(IDENTITY_ROUTE, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(next),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d || !d.ok) throw new Error((d && d.error) || '没存上')
+        setOnboarded(true)
+        setNote('存好了。重启 DSH 之后生效。')
+      })
+      .catch((e) => setError('没存上：' + (e && e.message ? e.message : e)))
+      .then(() => setBusy(false), () => setBusy(false))
+  }, [form])
+
+  const inputStyle = {
+    width: '100%', maxWidth: '360px', padding: '8px 11px', borderRadius: '9px', fontSize: '13.5px',
+    border: '1px solid var(--dsw-alias-border-primary, rgba(150,150,170,.32))',
+    background: 'var(--dsw-alias-bg-base, transparent)', color: 'var(--dsw-alias-text-primary)',
+  }
+
+  if (!form) {
+    return h('div', { className: 'mg-msg' }, error || '正在读设置…')
+  }
+
+  return h('div', { style: { padding: '18px 20px 24px', maxWidth: '860px' } },
+    !onboarded ? h('div', {
+      style: {
+        margin: '0 0 18px', padding: '16px 18px', borderRadius: '14px',
+        border: '1px solid var(--dsw-alias-brand-primary, #6f9dff)',
+        background: 'rgba(111,157,255,.10)',
+      },
+    },
+      h('div', { style: { fontSize: '16px', fontWeight: 600, margin: '0 0 6px' } }, '先给它起个名字'),
+      h('div', { style: { fontSize: '13px', lineHeight: 1.8 } },
+        '这套插件会把「你是谁」写进每个会话的开场。默认是通用名（大肥鱼 / 主人），不是某个人的名字——',
+        '改成你想要的，点「就这样开始」。以后随时在这一页改。')) : null,
+
+    h('div', { style: { fontSize: '15px', fontWeight: 600, margin: '0 0 14px' } },
+      onboarded ? '身份与称呼' : '三步填完'),
+
+    ID_FIELDS.map((f) => h('label', { key: f.key, style: { display: 'block', margin: '0 0 14px' } },
+      h('div', { style: { fontSize: '13px', margin: '0 0 4px' } }, f.label),
+      h('input', {
+        value: form[f.key], placeholder: f.ph, style: inputStyle,
+        onChange: (e) => setForm(Object.assign({}, form, { [f.key]: e.target.value })),
+      }),
+      h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-secondary)', marginTop: '4px' } }, f.hint))),
+
+    h('label', { style: { display: 'block', margin: '0 0 14px' } },
+      h('div', { style: { fontSize: '13px', margin: '0 0 4px' } }, '自称那一句'),
+      h('input', {
+        value: form.selfDesc, placeholder: '一个 AI，不是人',
+        style: Object.assign({}, inputStyle, { maxWidth: '520px' }),
+        onChange: (e) => setForm(Object.assign({}, form, { selfDesc: e.target.value })),
+      }),
+      h('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-text-secondary)', marginTop: '4px' } },
+        '拼成「你是<名字>（全名<全名>），<这一句>。」')),
+
+    h('label', { style: { display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 18px', fontSize: '13px' } },
+      h('input', {
+        type: 'checkbox', checked: form.identity !== false,
+        onChange: (e) => setForm(Object.assign({}, form, { identity: e.target.checked })),
+      }),
+      '把身份写进开场（关掉就只搬记忆、不带人格）'),
+
+    h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+      h('button', { disabled: busy, onClick: () => save(), className: 'on' },
+        busy ? '存…' : (onboarded ? '保存' : '就这样开始')),
+      h('button', { disabled: busy, onClick: load }, '重新读')),
+
+    h('div', { className: 'mg-msg', style: { minHeight: '18px' } }, note),
+    h('div', { className: 'mg-msg err', style: { minHeight: '18px' } }, error))
 }
 
 return {
   inject: ['slots'],
   apply(ctx) {
+    // 宿主随插件一起来，不等面板被打开（2026-11-10）
+    mingExtInstall()
+
+    // 设置页（2026-11-10）：自己挂进自己的页签列表，order 95 排在「光标」(60) 之后。
+    // 同步 add —— install 收 pending 的那一刻就把它收进去，不等任何网络请求。
+    try {
+      if (typeof window !== 'undefined') {
+        const desc = {
+          id: 'ming-settings',
+          label: '设置',
+          order: 95,
+          title: '身份与称呼：我叫什么、它怎么叫你、要不要带身份',
+          render: IdentityPanel,
+        }
+        if (window.__MING_TAB_HOST && typeof window.__MING_TAB_HOST.add === 'function') {
+          window.__MING_TAB_HOST.add(desc)
+        } else {
+          ;(window.__MING_TABS_PENDING || (window.__MING_TABS_PENDING = [])).push(desc)
+        }
+      }
+    } catch (e) { /* 页签挂了也别影响面板本身 */ }
     ctx.slots.inject('main', () => ctx.slots.register({
       name: 'main',
       key: 'ming-graph',
