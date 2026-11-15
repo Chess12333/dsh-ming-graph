@@ -35,7 +35,9 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const ROOT = 'C:/dsh'
+// 2026-11-15：根目录不再写死本机路径——默认取本文件上一级，可用 MING_ROOT 覆盖。
+// 同一批仓库并排放在一个父目录下是这套插件的前提，所以上一级就是根。
+const ROOT = process.env.MING_ROOT || path.resolve(here, '..')
 const OUT = path.join(here, 'client.js')
 const META = path.join(here, 'build.json')
 const checkOnly = process.argv.includes('--check')
@@ -223,7 +225,12 @@ fs.writeFileSync(META, JSON.stringify({
   hash: digest,
   at: new Date().toISOString(),
   bytes: out.length,
-  units: parts.map((p) => ({ label: p.label, path: p.path.replace(/\\/g, '/'), chars: p.text.length })),
+  units: parts.map((p) => ({
+    label: p.label,
+    // 只写相对根目录的路，别人 clone 到别处也对得上
+    path: p.path.replace(/\\/g, '/').replace(ROOT.replace(/\\/g, '/') + '/', ''),
+    chars: p.text.length,
+  })),
 }, null, 2) + '\n', 'utf8')
 
 console.log('✓ client.js 写好：' + out.length + ' 字节，' + parts.length + ' 个单元，build ' + digest)

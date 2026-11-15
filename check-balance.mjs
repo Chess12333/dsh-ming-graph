@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-const src = readFileSync('C:/dsh/dsh-ming-graph/src/panel.js', 'utf8')
+const src = readFileSync(new URL('./src/panel.js', import.meta.url), 'utf8')
 const start = src.indexOf('function PetPage()')
 const end = src.indexOf('function NeuronPanel()')
 const seg = src.slice(start, end)
